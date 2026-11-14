@@ -1,6 +1,7 @@
 """Model-aware installation records and broker ACLs; no external connections."""
 
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -29,9 +30,10 @@ class InstallationTests(unittest.TestCase):
                 public = json.loads((bundle_directory / "provision.json").read_text())
                 self.assertEqual(public["model"], model)
                 self.assertNotIn("token", public)
-                self.assertEqual(bundle_directory.stat().st_mode & 0o777, 0o700)
-                for path in bundle_directory.iterdir():
-                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name != "nt":
+                    self.assertEqual(bundle_directory.stat().st_mode & 0o777, 0o700)
+                    for path in bundle_directory.iterdir():
+                        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
                 export_directory = root / "broker"
                 export_broker_files(bundle_directory, export_directory)
@@ -44,8 +46,9 @@ class InstallationTests(unittest.TestCase):
                     f"topic write Winix/Event/Air01/{model}/{identity}\n",
                 )
                 self.assertFalse((export_directory / "ca.key").exists())
-                for path in export_directory.iterdir():
-                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name != "nt":
+                    for path in export_directory.iterdir():
+                        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
     def test_invalid_model_fails_before_creating_bundle_files(self):
         with tempfile.TemporaryDirectory() as temporary:

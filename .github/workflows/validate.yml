@@ -7,9 +7,10 @@ permissions:
   contents: read
 jobs:
   package:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
+        os: [ubuntu-latest, macos-15-intel, windows-latest]
         python: ['3.9', '3.13']
     steps:
       - uses: actions/checkout@v4
@@ -17,10 +18,13 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: python -m pip install -e '.[dev]'
-      - run: make validate PYTHON=python
+      - run: python -m black --check src
+      - run: python -m mypy
+      - run: python -m winix_local.build --project-root .
+      - run: python -B -m unittest discover -s src/tests -t src -p 'test_*.py'
       - uses: actions/upload-artifact@v4
         with:
-          name: winix-local-python-${{ matrix.python }}
+          name: winix-local-${{ matrix.os }}-python-${{ matrix.python }}
           path: dist/winix_local.zip
   home-assistant:
     runs-on: ubuntu-latest

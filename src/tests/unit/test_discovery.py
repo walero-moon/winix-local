@@ -10,6 +10,8 @@ from winix_local.setup_protocol import crypt, header, secret_key
 
 PEER = "192.168.43.1"
 MAC = "AABB0CDDEE10"
+LOCAL = "192.168.43.2"
+WINDOWS_ARP = r"C:\Windows\System32\arp.exe"
 
 
 def command_result(output, returncode=0):
@@ -127,7 +129,7 @@ class NeighborDiscoveryTests(unittest.TestCase):
             run.assert_not_called()
 
         with (
-            patch("winix_local.discovery.sys.platform", "win32"),
+            patch("winix_local.discovery.sys.platform", "freebsd13"),
             self.assertRaises(DiscoveryError),
         ):
             discover_peer_mac(PEER)
@@ -139,11 +141,116 @@ class NeighborDiscoveryTests(unittest.TestCase):
         ):
             discover_peer_mac(PEER)
 
+    def test_windows_query_uses_read_only_exact_peer_and_local_interface(self):
+        output = (
+            "Interface: 192.168.43.2 --- 0xf\n"
+            "  Internet Address      Physical Address      Type\n"
+            "  192.168.43.10         aa-bb-cc-dd-ee-ff     dynamic\n"
+            "  192.168.43.1          aa-bb-0c-dd-ee-10     dynamic\n"
+        )
+        with (
+            patch("winix_local.discovery.sys.platform", "win32"),
+            patch(
+                "winix_local.discovery.shutil.which", return_value=WINDOWS_ARP
+            ) as which,
+            patch(
+                "winix_local.discovery.subprocess.run",
+                return_value=command_result(output),
+            ) as run,
+        ):
+            self.assertEqual(discover_peer_mac(PEER, local_ip=LOCAL), MAC)
+
+        which.assert_called_once_with("arp.exe")
+        self.assertEqual(run.call_args.args[0], [WINDOWS_ARP, "-a", PEER, "-N", LOCAL])
+        self.assertEqual(run.call_args.kwargs["encoding"], "ascii")
+        self.assertEqual(run.call_args.kwargs["errors"], "replace")
+        self.assertEqual(run.call_args.kwargs["timeout"], 5)
+        self.assertNotIn("shell", run.call_args.kwargs)
+
+    def test_windows_localized_headings_and_multiple_interface_tables(self):
+        output = (
+            "Interfaz: 10.0.0.20 --- 0xb\n"
+            "  Direcci\u00f3n de Internet    Direcci\u00f3n f\u00edsica    Tipo\n"
+            "  192.168.43.1            aa-bb-cc-dd-ee-ff     din\u00e1mico\n"
+            "\u63a5\u53e3: 192.168.43.2 --- 0xf\n"
+            "  Internetadresse         Physische Adresse    Typ\n"
+            "  192.168.43.1            aa-bb-0c-dd-ee-10     dynamisch\n"
+        )
+        with (
+            patch("winix_local.discovery.sys.platform", "win32"),
+            patch("winix_local.discovery.shutil.which", return_value=WINDOWS_ARP),
+            patch(
+                "winix_local.discovery.subprocess.run",
+                return_value=command_result(output),
+            ),
+        ):
+            self.assertEqual(discover_peer_mac(PEER, local_ip=LOCAL), MAC)
+            with self.assertRaisesRegex(DiscoveryError, "Multiple"):
+                discover_peer_mac(PEER)
+            with self.assertRaises(DiscoveryError):
+                discover_peer_mac(PEER, local_ip="10.0.0.99")
+
+    def test_windows_rejects_other_peers_and_unusable_physical_addresses(self):
+        for row in (
+            "192.168.43.10 aa-bb-0c-dd-ee-10 dynamic",
+            "192.168.43.1 00-00-00-00-00-00 static",
+            "192.168.43.1 ff-ff-ff-ff-ff-ff static",
+            "192.168.43.1 01-00-5e-00-00-01 static",
+            "192.168.43.1 incomplete",
+            "192.168.43.1 aa-bb-0c-dd-ee-10-11 dynamic",
+        ):
+            with (
+                self.subTest(row=row),
+                patch("winix_local.discovery.sys.platform", "win32"),
+                patch("winix_local.discovery.shutil.which", return_value=WINDOWS_ARP),
+                patch(
+                    "winix_local.discovery.subprocess.run",
+                    return_value=command_result(row),
+                ),
+                self.assertRaises(DiscoveryError),
+            ):
+                discover_peer_mac(PEER)
+
+    def test_windows_missing_or_failed_arp_keeps_manual_fallback_available(self):
+        with (
+            patch("winix_local.discovery.sys.platform", "win32"),
+            patch("winix_local.discovery.shutil.which", return_value=None),
+            patch("winix_local.discovery.subprocess.run") as run,
+            self.assertRaisesRegex(DiscoveryError, "No supported"),
+        ):
+            discover_peer_mac(PEER)
+        run.assert_not_called()
+
+        for failure in (
+            command_result("unavailable", returncode=1),
+            FileNotFoundError(),
+            subprocess.TimeoutExpired("arp.exe", 5),
+        ):
+            with (
+                self.subTest(failure=type(failure).__name__),
+                patch("winix_local.discovery.sys.platform", "win32"),
+                patch("winix_local.discovery.shutil.which", return_value=WINDOWS_ARP),
+                patch(
+                    "winix_local.discovery.subprocess.run", side_effect=[failure]
+                ) as run,
+                self.assertRaisesRegex(DiscoveryError, "No usable"),
+            ):
+                discover_peer_mac(PEER)
+            run.assert_called_once()
+
+    def test_invalid_local_interface_is_rejected_without_any_command(self):
+        with patch("winix_local.discovery.subprocess.run") as run:
+            for local_ip in ("bad", "::1", "0.0.0.0", "224.0.0.1"):
+                with self.subTest(local_ip=local_ip), self.assertRaises(DiscoveryError):
+                    discover_peer_mac(PEER, local_ip=local_ip)
+        run.assert_not_called()
+
 
 class IdentityDiscoveryTests(unittest.TestCase):
     def connection(self):
         connection = Mock()
         connection.getpeername.return_value = (PEER, 47000)
+        connection.getsockname.return_value = (LOCAL, 50123)
         manager = Mock()
         manager.__enter__ = Mock(return_value=connection)
         manager.__exit__ = Mock(return_value=False)
@@ -157,9 +264,11 @@ class IdentityDiscoveryTests(unittest.TestCase):
             order.append("connect")
             return manager
 
-        def discover(peer):
+        def discover(peer, local_ip=None):
             order.append("neighbor")
             self.assertEqual(peer, PEER)
+            if local_ip is not None:
+                self.assertEqual(local_ip, LOCAL)
             return MAC
 
         def verify(peer_connection, key, nonce, expected_model):
@@ -187,6 +296,26 @@ class IdentityDiscoveryTests(unittest.TestCase):
         manager.__exit__.assert_called_once()
         connection.sendall.assert_not_called()
 
+    def test_windows_identity_uses_the_connected_local_interface(self):
+        manager, connection = self.connection()
+        with (
+            patch("winix_local.discovery.sys.platform", "win32"),
+            patch(
+                "winix_local.discovery.socket.create_connection", return_value=manager
+            ),
+            patch(
+                "winix_local.discovery.discover_peer_mac", return_value=MAC
+            ) as discover,
+            patch("winix_local.provision.verify_device", return_value="5520_US"),
+        ):
+            self.assertEqual(
+                identify_device(expected_model="5520_US"), (MAC, "5520_US")
+            )
+
+        discover.assert_called_once_with(PEER, local_ip=LOCAL)
+        connection.getsockname.assert_called_once()
+        connection.sendall.assert_not_called()
+
     def test_real_codec_verifies_discovered_candidate_without_configuration(self):
         class HandshakePeer:
             def __init__(self):
@@ -201,6 +330,9 @@ class IdentityDiscoveryTests(unittest.TestCase):
 
             def getpeername(self):
                 return PEER, 47000
+
+            def getsockname(self):
+                return LOCAL, 50123
 
             def sendall(self, request):
                 self.requests.append(request)
@@ -266,7 +398,7 @@ class IdentityDiscoveryTests(unittest.TestCase):
         for failure in (
             ValueError("wrong model"),
             EOFError("partial reply"),
-            subprocess.CalledProcessError(1, "openssl"),
+            ValueError("Invalid encrypted setup reply"),
         ):
             with self.subTest(failure=type(failure).__name__):
                 manager, _ = self.connection()

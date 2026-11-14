@@ -15,6 +15,7 @@ from typing import Mapping, Union
 from .installation import InstallationConfig, ProvisioningConfig, load_bundle
 from .pki import create_bundle, private_write
 from .prepare_broker import export_broker_files
+from .private_storage import restrict_private
 from .provision import validate_hostname
 from .wire import mac_id, validate_model
 
@@ -210,11 +211,13 @@ def prepare_setup(
     root.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{root.name}-", dir=root.parent))
     try:
+        restrict_private(staging, directory=True)
         create_bundle(staging / "bundle", **settings)
         export_broker_files(staging / "bundle", staging / "broker-export")
 
         config_directory = staging / "broker-config"
         config_directory.mkdir(mode=0o700)
+        restrict_private(config_directory, directory=True)
         for name in BROKER_RUNTIME_FILES:
             private_write(
                 config_directory / name, (staging / "broker-export" / name).read_bytes()
@@ -229,6 +232,10 @@ def prepare_setup(
         private_write(
             staging / STATE_FILENAME, (json.dumps(state, indent=2) + "\n").encode()
         )
+        # Windows cannot replace an existing directory, even an empty one.
+        # rmdir refuses a directory that acquired contents while preparing.
+        if root.exists():
+            root.rmdir()
         staging.replace(root)
     finally:
         if staging.exists():

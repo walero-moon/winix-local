@@ -2,7 +2,6 @@
 
 import ipaddress
 import json
-import os
 import secrets
 import string
 from datetime import datetime, timezone
@@ -15,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from .installation import InstallationConfig
+from .private_storage import restrict_private
 from .wire import mac_id, validate_model
 
 # Preserve the established validity window. A device still needs a correct clock;
@@ -28,7 +28,7 @@ REGISTRATION_TOKEN_LENGTH = 10
 
 def private_write(path: Path, data: bytes) -> None:
     with path.open("xb") as stream:
-        os.chmod(path, 0o600)
+        restrict_private(path, directory=False)
         stream.write(data)
 
 
@@ -54,7 +54,7 @@ def create_bundle(
             "Bundle directory must be empty; reuse existing bundle instead"
         )
 
-    os.chmod(directory, 0o700)
+    restrict_private(directory, directory=True)
 
     ca_key = rsa.generate_private_key(
         public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE_BITS
@@ -71,6 +71,14 @@ def create_bundle(
         .not_valid_before(CERTIFICATE_NOT_BEFORE)
         .not_valid_after(CERTIFICATE_NOT_AFTER)
         .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+        .add_extension(
+            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+            critical=False,
+        )
+        .add_extension(
+            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+            critical=False,
+        )
         .add_extension(
             x509.KeyUsage(
                 digital_signature=False,
@@ -118,6 +126,14 @@ def create_bundle(
             .not_valid_after(CERTIFICATE_NOT_AFTER)
             .add_extension(
                 x509.BasicConstraints(ca=False, path_length=None), critical=True
+            )
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
             )
             .add_extension(x509.ExtendedKeyUsage([extended_usage]), critical=False)
         )

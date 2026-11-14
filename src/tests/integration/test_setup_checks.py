@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import unittest
 
 from aiohttp import web
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
 
 from winix_local.backend import RegistrationServer
 from winix_local.pki import create_bundle
@@ -47,8 +49,39 @@ class ObservedRegistrationServer(RegistrationServer):
         return await super().get_auth(request)
 
 
+def make_legacy_certificates(directory):
+    """Model existing bundles that must remain usable without CA rotation."""
+    ca_key = serialization.load_pem_private_key(
+        (directory / "ca.key").read_bytes(), password=None
+    )
+    for name in ("ca.pem", "auth.pem"):
+        certificate = x509.load_pem_x509_certificate((directory / name).read_bytes())
+        builder = (
+            x509.CertificateBuilder()
+            .subject_name(certificate.subject)
+            .issuer_name(certificate.issuer)
+            .public_key(certificate.public_key())
+            .serial_number(certificate.serial_number)
+            .not_valid_before(certificate.not_valid_before_utc)
+            .not_valid_after(certificate.not_valid_after_utc)
+        )
+        for extension in certificate.extensions:
+            if isinstance(
+                extension.value,
+                (x509.SubjectKeyIdentifier, x509.AuthorityKeyIdentifier),
+            ):
+                continue
+            builder = builder.add_extension(
+                extension.value, critical=extension.critical
+            )
+        legacy = builder.sign(ca_key, hashes.SHA256())
+        (directory / name).write_bytes(legacy.public_bytes(serialization.Encoding.PEM))
+
+
 @asynccontextmanager
-async def local_services(*, certificate_host="127.0.0.1", ca_body=None, ca_status=200):
+async def local_services(
+    *, certificate_host="127.0.0.1", ca_body=None, ca_status=200, legacy=False
+):
     broker_connected = asyncio.Event()
 
     async def accept_broker(reader, writer):
@@ -78,6 +111,10 @@ async def local_services(*, certificate_host="127.0.0.1", ca_body=None, ca_statu
                 mqtt_port=broker_port,
             )
             public = json.loads((directory / "provision.json").read_text())
+            if legacy:
+                make_legacy_certificates(directory)
+                ca = x509.load_pem_x509_certificate((directory / "ca.pem").read_bytes())
+                public["ca_sha256"] = ca.fingerprint(hashes.SHA256()).hex()
             public["server_host"] = "127.0.0.1"
             registration = ObservedRegistrationServer(
                 directory, config, ca_body=ca_body, ca_status=ca_status
@@ -114,6 +151,27 @@ class EndpointReadinessTests(unittest.IsolatedAsyncioTestCase):
 
             self.assertEqual(services.registration.requests, ["ca"])
             self.assertTrue(services.broker_connected.is_set())
+
+    async def test_legacy_bundle_still_requires_its_pinned_ca_and_correct_hostname(
+        self,
+    ):
+        async with local_services(legacy=True) as services:
+            await self.verify(services.config)
+            await asyncio.wait_for(services.broker_connected.wait(), timeout=1)
+            self.assertEqual(services.registration.requests, ["ca"])
+
+        async with local_services(legacy=True) as services:
+            services.config["ca_sha256"] = "0" * 64
+            with self.assertRaisesRegex(EndpointCheckError, "does not match"):
+                await self.verify(services.config)
+            self.assertFalse(services.broker_connected.is_set())
+
+        async with local_services(
+            legacy=True, certificate_host="different-host.test"
+        ) as services:
+            with self.assertRaisesRegex(EndpointCheckError, "TLS verification failed"):
+                await self.verify(services.config)
+            self.assertFalse(services.broker_connected.is_set())
 
     async def test_wrong_ca_fingerprint_stops_before_mqtt_probe(self):
         async with local_services() as services:

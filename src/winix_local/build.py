@@ -31,6 +31,7 @@ CORE_FILES = (
     "model.py",
     "offline_clock.py",
     "pki.py",
+    "private_storage.py",
     "setup_protocol.py",
     "wire.py",
 )

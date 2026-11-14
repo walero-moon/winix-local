@@ -19,7 +19,13 @@ from .wire import mac_id, validate_model
 
 NEIGHBOR_COMMAND_TIMEOUT_SECONDS = 5
 _MAC_PATTERN = re.compile(
-    r"(?<![0-9A-Fa-f:])(?:[0-9A-Fa-f]{1,2}:){5}[0-9A-Fa-f]{1,2}(?![0-9A-Fa-f:])"
+    r"(?<![0-9A-Fa-f:-])"
+    r"(?:(?:[0-9A-Fa-f]{1,2}:){5}[0-9A-Fa-f]{1,2}|"
+    r"(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2})"
+    r"(?![0-9A-Fa-f:-])"
+)
+_WINDOWS_INTERFACE_PATTERN = re.compile(
+    r"(?<![0-9.])([0-9]+(?:\.[0-9]+){3})\s+---\s+0x[0-9A-Fa-f]+\s*$"
 )
 
 
@@ -28,8 +34,8 @@ class DiscoveryError(ValueError):
 
 
 def _normalize_neighbor_mac(value: str) -> str:
-    """Handle macOS's short octets and reject unusable link-layer addresses."""
-    octets = value.split(":")
+    """Handle macOS short octets and Windows dashes; require usable unicast MACs."""
+    octets = value.replace("-", ":").split(":")
     if len(octets) != 6 or any(
         re.fullmatch(r"[0-9A-Fa-f]{1,2}", octet) is None for octet in octets
     ):
@@ -43,7 +49,7 @@ def _normalize_neighbor_mac(value: str) -> str:
 
 
 def _line_peer(line: str) -> Optional[ipaddress.IPv4Address]:
-    """Recognize macOS/BSD arp and Linux ip-neigh/arp address columns."""
+    """Recognize the numeric peer column without depending on localized headings."""
     parenthesized = re.search(r"\(([^()\s]+)\)\s+at\s+", line)
     if parenthesized is not None:
         value = parenthesized.group(1)
@@ -59,10 +65,27 @@ def _line_peer(line: str) -> Optional[ipaddress.IPv4Address]:
         return None
 
 
-def _parse_peer_mac(output: str, peer: ipaddress.IPv4Address) -> Optional[str]:
+def _parse_peer_mac(
+    output: str,
+    peer: ipaddress.IPv4Address,
+    local_ip: Optional[ipaddress.IPv4Address] = None,
+) -> Optional[str]:
     candidates = set()
+    current_interface = None
 
     for line in output.splitlines():
+        # Windows emits one table per interface. The punctuation and numeric
+        # fields stay useful even when "Interface" and column labels translate.
+        interface = _WINDOWS_INTERFACE_PATTERN.search(line)
+        if interface is not None:
+            try:
+                current_interface = ipaddress.IPv4Address(interface.group(1))
+            except ipaddress.AddressValueError:
+                current_interface = None
+            continue
+
+        if local_ip is not None and current_interface not in (None, local_ip):
+            continue
         if _line_peer(line) != peer:
             continue
 
@@ -79,7 +102,7 @@ def _parse_peer_mac(output: str, peer: ipaddress.IPv4Address) -> Optional[str]:
     return next(iter(candidates), None)
 
 
-def _neighbor_commands(peer: str) -> list[list[str]]:
+def _neighbor_commands(peer: str, local_ip: Optional[str] = None) -> list[list[str]]:
     if sys.platform == "darwin":
         return [["/usr/sbin/arp", "-n", peer]]
 
@@ -93,23 +116,37 @@ def _neighbor_commands(peer: str) -> list[list[str]]:
             commands.append([arp_command, "-n", peer])
         return commands
 
-    raise DiscoveryError("Automatic MAC lookup supports macOS and Linux only")
+    if sys.platform == "win32":
+        arp_command = shutil.which("arp.exe")
+        if arp_command is None:
+            return []
+
+        command = [arp_command, "-a", peer]
+        if local_ip is not None:
+            command.extend(["-N", local_ip])
+        return [command]
+
+    raise DiscoveryError("Automatic MAC lookup supports Windows, macOS and Linux")
 
 
-def discover_peer_mac(ip: str) -> str:
+def discover_peer_mac(ip: str, local_ip: Optional[str] = None) -> str:
     """Read one exact IPv4 peer from the OS neighbor table; never scan a subnet.
 
     Open the setup connection first so the kernel has resolved its neighbor. The
     returned value is a candidate and must pass the device handshake before use.
+    Windows can additionally restrict its query to the connection's interface.
     """
     try:
         peer = ipaddress.IPv4Address(ip)
+        local = ipaddress.IPv4Address(local_ip) if local_ip is not None else None
+        if local is not None and (local.is_unspecified or local.is_multicast):
+            raise ipaddress.AddressValueError("Invalid local interface address")
     except ipaddress.AddressValueError as error:
         raise DiscoveryError(
-            "Automatic MAC lookup requires an IPv4 setup peer"
+            "Automatic MAC lookup requires IPv4 setup and interface addresses"
         ) from error
 
-    commands = _neighbor_commands(str(peer))
+    commands = _neighbor_commands(str(peer), str(local) if local is not None else None)
     if not commands:
         raise DiscoveryError("No supported neighbor-table command is installed")
 
@@ -119,6 +156,8 @@ def discover_peer_mac(ip: str) -> str:
                 command,
                 capture_output=True,
                 text=True,
+                encoding="ascii",
+                errors="replace",
                 timeout=NEIGHBOR_COMMAND_TIMEOUT_SECONDS,
                 check=False,
             )
@@ -128,7 +167,7 @@ def discover_peer_mac(ip: str) -> str:
         if result.returncode != 0:
             continue
 
-        candidate = _parse_peer_mac(result.stdout, peer)
+        candidate = _parse_peer_mac(result.stdout, peer, local)
         if candidate is not None:
             return candidate
 
@@ -166,14 +205,20 @@ def identify_device(
             (setup_host, setup_port), timeout=SETUP_TIMEOUT_SECONDS
         ) as connection:
             if candidate is None:
-                candidate = discover_peer_mac(connection.getpeername()[0])
+                peer_ip = connection.getpeername()[0]
+                if sys.platform == "win32":
+                    candidate = discover_peer_mac(
+                        peer_ip, local_ip=connection.getsockname()[0]
+                    )
+                else:
+                    candidate = discover_peer_mac(peer_ip)
 
             nonce = secrets.token_bytes(4)
             key = secret_key(nonce, candidate)
             model = verify_device(connection, key, nonce, expected_model)
     except DiscoveryError:
         raise
-    except (OSError, EOFError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, EOFError, ValueError) as error:
         raise DiscoveryError(
             "Could not verify the purifier's setup identity; check the setup Wi-Fi "
             "connection and full device MAC"

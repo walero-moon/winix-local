@@ -11,6 +11,7 @@ import secrets
 import shutil
 
 from .installation import InstallationConfig, load_bundle
+from .private_storage import restrict_private
 from .wire import device_id, mac_id, topic, validate_model
 
 # Preserve Mosquitto's established $7$ password-file encoding. This is its
@@ -74,6 +75,7 @@ def export_broker_files(bundle_directory: Path, output_directory: Path) -> None:
     acl = device_acl(config)
 
     output_directory.mkdir(parents=True, exist_ok=False, mode=0o700)
+    restrict_private(output_directory, directory=True)
     for name in ("ca.pem", "broker.pem", "broker.key"):
         shutil.copyfile(bundle_directory / name, output_directory / name)
 
@@ -97,7 +99,7 @@ def export_broker_files(bundle_directory: Path, output_directory: Path) -> None:
     )
 
     for exported_file in output_directory.iterdir():
-        exported_file.chmod(0o600)
+        restrict_private(exported_file, directory=False)
 
 
 def main(argv=None) -> None:

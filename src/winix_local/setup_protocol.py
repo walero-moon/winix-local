@@ -8,7 +8,9 @@ This module has no automatic device writes or cloud connections.
 import re
 import socket
 import struct
-import subprocess
+
+from cryptography.hazmat.primitives import padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 # GEN2 frames carry a four-byte length followed by a fixed 16-byte header.
 # The advertised request length counts plaintext, even when AES adds padding.
@@ -68,15 +70,27 @@ def secret_key(nonce: bytes, mac: str) -> bytes:
 
 
 def crypt(data: bytes, key: bytes, decrypt: bool = False) -> bytes:
+    """Match the stock protocol's AES-128-ECB and PKCS#7 padding in process."""
     if len(key) != AES_KEY_BYTES:
         raise ValueError("AES-128 key required")
 
-    command = ["/usr/bin/openssl", "enc", "-aes-128-ecb", "-K", key.hex()]
+    cipher = Cipher(algorithms.AES(key), modes.ECB())
     if decrypt:
-        command.append("-d")
+        if not data or len(data) % AES_KEY_BYTES:
+            raise ValueError("invalid encrypted setup payload")
 
-    result = subprocess.run(command, input=data, capture_output=True, check=True)
-    return result.stdout
+        decryptor = cipher.decryptor()
+        padded = decryptor.update(data) + decryptor.finalize()
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        try:
+            return unpadder.update(padded) + unpadder.finalize()
+        except ValueError as error:
+            raise ValueError("invalid encrypted setup payload") from error
+
+    padder = padding.PKCS7(algorithms.AES.block_size).padder()
+    padded = padder.update(data) + padder.finalize()
+    encryptor = cipher.encryptor()
+    return encryptor.update(padded) + encryptor.finalize()
 
 
 def server_body(

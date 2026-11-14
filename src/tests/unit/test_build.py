@@ -99,6 +99,8 @@ print('isolated archive imports passed')
         source = self.project / "src/winix_local/wire.py"
         os.utime(source, (1700000000, 1700000000))
         source.chmod(0o444)
+        # Windows requires clearing the read-only flag before fixture cleanup.
+        self.addCleanup(source.chmod, 0o644)
 
         second = build_archive(self.project, "second/winix_local.zip").read_bytes()
         self.assertEqual(first, second)
@@ -140,7 +142,10 @@ print('isolated archive imports passed')
             build_archive(self.project)
         self.assertFalse((self.project / "dist").exists())
 
-        source.symlink_to(ROOT / "src/winix_local/wire.py")
+        try:
+            source.symlink_to(ROOT / "src/winix_local/wire.py")
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation unavailable to this test user")
         with self.assertRaisesRegex(BuildError, "symlinks"):
             build_archive(self.project)
         self.assertFalse((self.project / "dist").exists())
@@ -159,7 +164,10 @@ print('isolated archive imports passed')
 
         destination = Path(self.temporary.name) / "elsewhere"
         destination.mkdir()
-        (self.project / "dist").symlink_to(destination, target_is_directory=True)
+        try:
+            (self.project / "dist").symlink_to(destination, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            self.skipTest("Symlink creation unavailable to this test user")
         with self.assertRaisesRegex(BuildError, "symlinks"):
             build_archive(self.project)
         self.assertEqual(list(destination.iterdir()), [])

@@ -31,13 +31,33 @@ is canonical HA metadata; HACS reads it from the root because `hacs.json` enable
 
 ## Development
 
-Python 3.9+ and `/usr/bin/openssl` are required. From the repository root:
+Python 3.9+ is required on Windows, macOS, and Linux. From the repository root:
+
+macOS/Linux:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install --upgrade pip
 .venv/bin/python -m pip install -e '.[dev]'
 make validate PYTHON=.venv/bin/python
+```
+
+Windows (PowerShell):
+
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e '.[dev]'
+.\.venv\Scripts\python.exe -m black --check src
+.\.venv\Scripts\python.exe -m mypy
+.\.venv\Scripts\python.exe -m winix_local.build --project-root .
+.\.venv\Scripts\python.exe -B -m unittest discover -s src/tests -t src -p 'test_*.py'
+```
+
+To run the guided setup on Windows:
+
+```powershell
+.\.venv\Scripts\winix-local.exe setup
 ```
 
 The installed commands are `winix-local` (installation/provisioning),
@@ -48,6 +68,12 @@ The installed commands are `winix-local` (installation/provisioning),
 
 ```sh
 .venv/bin/winix-local-build --project-root .
+```
+
+On Windows:
+
+```powershell
+.\.venv\Scripts\winix-local-build.exe --project-root .
 ```
 
 This creates `dist/winix_local.zip`. Its contents install directly into

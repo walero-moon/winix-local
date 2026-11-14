@@ -54,6 +54,13 @@ def verify_endpoints(config: ProvisioningConfig) -> None:
             raise EndpointCheckError("The served CA does not match this installation")
 
         context = ssl.create_default_context(cadata=ca_pem.decode("ascii"))
+        try:
+            certificate.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
+        except x509.ExtensionNotFound:
+            # Older installation CAs predate our key-identifier extensions. The
+            # exact CA pin was checked above; retain chain/hostname/date checks
+            # while allowing that legacy profile on Python 3.13+.
+            context.verify_flags &= ~ssl.VERIFY_X509_STRICT
         with socket.create_connection(
             (config["server_host"], config["https_port"]),
             timeout=ENDPOINT_TIMEOUT_SECONDS,

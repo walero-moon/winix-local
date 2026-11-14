@@ -2,7 +2,6 @@
 
 import argparse
 import getpass
-import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -107,7 +106,7 @@ def _choose_network(args, mac: str, model: str) -> Tuple[str, str]:
         networks = scan_networks(
             args.setup_host, args.setup_port, mac, expected_model=model
         )
-    except (OSError, EOFError, ValueError, subprocess.SubprocessError) as error:
+    except (OSError, EOFError, ValueError) as error:
         print(
             f"Wi-Fi scan unavailable ({type(error).__name__}); enter the target manually."
         )
@@ -254,9 +253,9 @@ def run_setup(args: argparse.Namespace) -> None:
 
     try:
         apply_configuration(config, credentials, args.setup_host, args.setup_port)
-    except (EOFError, subprocess.SubprocessError) as error:
-        # OpenSSL exceptions include its -K argument. Keep protocol keys out of
-        # normal CLI output, including when the device closes an exchange.
+    except (EOFError, ValueError) as error:
+        # Keep payload and key material out of normal CLI errors, including
+        # interrupted exchanges and malformed encrypted responses.
         raise ValueError(
             "The setup reply was interrupted or could not be decoded. "
             "Some settings may have been sent; verify the purifier before retrying."

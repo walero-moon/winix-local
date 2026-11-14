@@ -135,7 +135,7 @@ def initialize_installation(args: argparse.Namespace) -> None:
         else discover_device_model(mac, args.setup_host, args.setup_port)
     )
 
-    # Provisioning alone uses stdlib/OpenSSL; only bundle creation needs PKI deps.
+    # Bundle creation is imported here so command parsing stays lightweight.
     from .pki import create_bundle
 
     create_bundle(

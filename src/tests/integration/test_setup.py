@@ -310,7 +310,7 @@ class GuidedSetupTests(unittest.TestCase):
         protocol_key = "fixture-sensitive-aes-key"
         failures = (
             EOFError("partial reply"),
-            subprocess.CalledProcessError(1, ["openssl", "-K", protocol_key]),
+            ValueError("fixture decoding failure: " + protocol_key),
         )
         with tempfile.TemporaryDirectory() as temporary:
             installation = prepared(Path(temporary) / "private")

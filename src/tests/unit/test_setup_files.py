@@ -2,9 +2,11 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from winix_local.setup_files import (
     BROKER_RUNTIME_FILES,
@@ -64,11 +66,12 @@ class SetupFilesTests(unittest.TestCase):
                 (prepared.broker_config_directory / "ha-credentials.json").exists()
             )
 
-            for path in prepared.root.rglob("*"):
-                self.assertEqual(
-                    path.stat().st_mode & 0o777, 0o700 if path.is_dir() else 0o600
-                )
-            self.assertEqual(prepared.root.stat().st_mode & 0o777, 0o700)
+            if os.name != "nt":
+                for path in prepared.root.rglob("*"):
+                    self.assertEqual(
+                        path.stat().st_mode & 0o777, 0o700 if path.is_dir() else 0o600
+                    )
+                self.assertEqual(prepared.root.stat().st_mode & 0o777, 0o700)
 
             state = json.loads((prepared.root / "setup.json").read_text())
             self.assertNotIn("token", state["settings"])
@@ -141,10 +144,32 @@ class SetupFilesTests(unittest.TestCase):
             destination = root / "real-directory"
             destination.mkdir()
             link = root / "link"
-            link.symlink_to(destination, target_is_directory=True)
+            try:
+                link.symlink_to(destination, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("Symlink creation unavailable to this test user")
             with self.assertRaisesRegex(SetupFilesError, "symlink"):
                 prepare_setup(link, **SETTINGS)
             self.assertEqual(list(destination.iterdir()), [])
+
+    def test_precreated_empty_directory_is_removed_before_atomic_rename(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "installation"
+            directory.mkdir()
+            replace = Path.replace
+
+            def require_missing_destination(source, destination):
+                # Model Windows MoveFileEx: existing directories are not valid
+                # replace targets, even when the destination is still empty.
+                self.assertFalse(Path(destination).exists())
+                return replace(source, destination)
+
+            with patch.object(Path, "replace", require_missing_destination):
+                prepared = prepare_setup(directory, **SETTINGS)
+
+            self.assertTrue((prepared.bundle_directory / "ca.key").is_file())
+            self.assertTrue((directory / "setup.json").is_file())
+            self.assertFalse(prepared.reused)
 
     def test_invalid_input_does_not_create_artifacts(self):
         for overrides in (
