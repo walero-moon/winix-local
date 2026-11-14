@@ -251,7 +251,7 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 flow._abort_if_unique_id_configured = Mock()
                 flow.async_create_entry = Mock(return_value={"type": "create_entry"})
 
-                result = await flow.async_step_user({"mac": "AA:BB:CC:DD:EE:FF"})
+                result = await flow.async_step_existing({"mac": "AA:BB:CC:DD:EE:FF"})
                 self.assertEqual(result["type"], "create_entry")
                 self.assertEqual(
                     flow.async_create_entry.call_args.kwargs,
@@ -284,13 +284,266 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             flow.async_create_entry = Mock()
             flow.async_show_form = Mock(return_value={"type": "form"})
 
-            result = await flow.async_step_user({"mac": "AABBCCDDEEFF"})
+            result = await flow.async_step_existing({"mac": "AABBCCDDEEFF"})
             self.assertEqual(result["type"], "form")
             self.assertEqual(
                 flow.async_show_form.call_args.kwargs["errors"],
                 {"base": "invalid_bundle"},
             )
             flow.async_create_entry.assert_not_called()
+            await hass.async_stop()
+
+    async def test_new_setup_generates_and_imports_without_storing_keys_in_entry(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from custom_components.winix_local._core.pki import create_bundle
+
+        from homeassistant.helpers.data_entry_flow import FlowManagerResourceView
+
+        serializer = FlowManagerResourceView(Mock())
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="ha.test",
+            mqtt_host="mqtt.test",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as source:
+            source_path = Path(source)
+            create_bundle(source_path, **settings)
+            material = {
+                name.replace(".", "_"): (source_path / name).read_text()
+                for name in (
+                    "ca.pem",
+                    "ca.key",
+                    "auth.pem",
+                    "auth.key",
+                    "broker.pem",
+                    "broker.key",
+                    "device.pem",
+                    "device.key",
+                )
+            }
+            for mode, retain in (
+                ("generate", False),
+                ("generate", True),
+                ("issuer", False),
+                ("issuer", True),
+                ("certificates", False),
+                ("certificates", True),
+            ):
+                with (
+                    self.subTest(mode=mode, retain=retain),
+                    tempfile.TemporaryDirectory() as directory,
+                ):
+                    hass = HomeAssistant(directory)
+                    flow = WinixLocalFlow()
+                    flow.hass = hass
+                    flow.async_set_unique_id = AsyncMock()
+                    flow._abort_if_unique_id_configured = Mock()
+                    flow.async_create_entry = Mock(
+                        return_value={"type": "create_entry"}
+                    )
+                    menu = await flow.async_step_user()
+                    self.assertEqual(menu["type"], "menu")
+                    connection_form = await flow.async_step_connection()
+                    self.assertIsInstance(
+                        serializer._prepare_result_json(connection_form)["data_schema"],
+                        list,
+                    )
+                    source_menu = await flow.async_step_connection(settings)
+                    self.assertEqual(source_menu["type"], "menu")
+                    certificate_form = await getattr(flow, "async_step_" + mode)()
+                    self.assertIsInstance(
+                        serializer._prepare_result_json(certificate_form)[
+                            "data_schema"
+                        ],
+                        list,
+                    )
+                    inputs = {"retain_ca_key": retain}
+                    if mode == "issuer":
+                        inputs.update(
+                            {name: material[name] for name in ("ca_pem", "ca_key")}
+                        )
+                    elif mode == "certificates":
+                        inputs.update(material)
+                    confirm = await getattr(flow, "async_step_" + mode)(inputs)
+                    self.assertEqual(confirm["step_id"], "confirm")
+                    self.assertFalse((Path(directory) / "winix_local").exists())
+                    result = await flow.async_step_confirm({})
+                    self.assertEqual(result["type"], "create_entry")
+                    self.assertEqual(
+                        flow.async_create_entry.call_args.kwargs["data"],
+                        {"mac": "AABBCCDDEEFF"},
+                    )
+                    bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+                    self.assertEqual((bundle / "ca.key").exists(), retain)
+                    self.assertEqual(flow._material, {})
+                    self.assertTrue((bundle / "provision.json").is_file())
+                    await hass.async_stop()
+
+    async def test_new_setup_validation_and_existing_bundle_protection(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="ha.test",
+            mqtt_host="mqtt.test",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            result = await flow.async_step_connection(
+                dict(settings, server_host="https://wrong")
+            )
+            self.assertEqual(result["errors"], {"base": "invalid_settings"})
+            flow.async_set_unique_id.assert_not_awaited()
+            await flow.async_step_connection(settings)
+            result = await flow.async_step_issuer(
+                {
+                    "ca_pem": "fixture-private-data",
+                    "ca_key": "fixture-private-key",
+                    "retain_ca_key": True,
+                }
+            )
+            self.assertEqual(result["errors"], {"base": "invalid_certificates"})
+            self.assertNotIn("fixture-private", repr(result))
+            self.assertFalse(flow._material)
+            self.assertFalse((Path(directory) / "winix_local").exists())
+            await flow.async_step_generate({"retain_ca_key": False})
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            bundle.mkdir(parents=True)
+            sentinel = bundle / "keep"
+            sentinel.write_text("existing")
+            result = await flow.async_step_confirm({})
+            self.assertEqual(result["errors"], {"base": "bundle_exists"})
+            self.assertEqual(sentinel.read_text(), "existing")
+            await hass.async_stop()
+
+    async def test_admin_downloads_are_scoped_private_and_broker_neutral(self):
+        from types import SimpleNamespace
+        from aiohttp import web
+        from custom_components.winix_local.downloads import (
+            WinixDownloadView,
+            download_links,
+        )
+        from custom_components.winix_local._core.pki import create_bundle
+        from homeassistant.components.http.const import (
+            KEY_HASS_USER,
+            KEY_HASS_REFRESH_TOKEN_ID,
+        )
+        from homeassistant.helpers.http import current_request
+        from homeassistant.components.http.auth import async_setup_auth, async_sign_path
+        from homeassistant.components.http import KEY_HASS
+        from datetime import timedelta
+        from unittest.mock import PropertyMock
+        from custom_components.winix_local.config_flow import WinixOptionsFlow
+        from homeassistant.auth import auth_manager_from_config
+        from homeassistant.helpers import device_registry
+        from aiohttp.test_utils import TestClient, TestServer
+
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            create_bundle(
+                bundle, "AABBCCDDEEFF", "ha.test", "mqtt.test", model="5520_US"
+            )
+            hass.config_entries = Mock()
+            hass.config_entries.async_entries.return_value = [
+                SimpleNamespace(data={"mac": "AABBCCDDEEFF"})
+            ]
+            view = WinixDownloadView(hass)
+            admin = SimpleNamespace(is_admin=True)
+            response = await view.get({KEY_HASS_USER: admin}, "AABBCCDDEEFF", "broker")
+            self.assertEqual(response.content_type, "application/zip")
+            self.assertEqual(response.headers["Cache-Control"], "no-store")
+            for request in ({}, {KEY_HASS_USER: SimpleNamespace(is_admin=False)}):
+                with self.assertRaises(web.HTTPForbidden):
+                    await view.get(request, "AABBCCDDEEFF", "broker")
+            for mac, kind in (
+                ("AABBCCDDEEFF", "ca.key"),
+                ("112233445566", "broker"),
+                ("../bad", "broker"),
+            ):
+                with self.assertRaises(web.HTTPNotFound):
+                    await view.get({KEY_HASS_USER: admin}, mac, kind)
+            # Use HA's real auth manager and middleware: verify signed paths,
+            # exact resource binding and rejection after token revocation.
+            app = web.Application()
+            app[KEY_HASS] = hass
+            hass.http = None
+            device_registry.async_setup(hass)
+            await device_registry.async_load(hass)
+            hass.auth = await auth_manager_from_config(hass, [], [])
+            await async_setup_auth(hass, app)
+            user = await hass.auth.async_create_user(
+                "Winix test admin", group_ids=["system-admin"]
+            )
+            refresh = await hass.auth.async_create_refresh_token(
+                user, client_id="http://winix-test"
+            )
+            request_context = current_request.set(
+                {KEY_HASS_USER: user, KEY_HASS_REFRESH_TOKEN_ID: refresh.id}
+            )
+            try:
+                with patch(
+                    "custom_components.winix_local.downloads.register_downloads"
+                ):
+                    links = await download_links(hass, "AABBCCDDEEFF")
+                    options = WinixOptionsFlow()
+                    options.hass = hass
+                    with patch.object(
+                        WinixOptionsFlow,
+                        "config_entry",
+                        new_callable=PropertyMock,
+                        return_value=SimpleNamespace(data={"mac": "AABBCCDDEEFF"}),
+                    ):
+                        form = await options.async_step_init()
+                    self.assertEqual(form["step_id"], "init")
+                    self.assertIn(
+                        "authSig=", form["description_placeholders"]["broker"]
+                    )
+            finally:
+                current_request.reset(request_context)
+
+            async def handler(request):
+                return await view.get(
+                    request, request.match_info["mac"], request.match_info["kind"]
+                )
+
+            with self.assertRaises(ValueError):
+                await download_links(hass, "AABBCCDDEEFF")
+            app.router.add_get(view.url, handler)
+            async with TestClient(TestServer(app)) as client:
+                response = await client.get(links["provision"])
+                self.assertEqual(response.status, 200)
+                body = await response.json()
+                self.assertNotIn("token", body)
+                response = await client.get(
+                    links["provision"].replace("/provision?", "/broker?")
+                )
+                self.assertEqual(response.status, 403)
+                expired = async_sign_path(
+                    hass,
+                    view.url.replace("{mac}", "AABBCCDDEEFF").replace(
+                        "{kind}", "provision"
+                    ),
+                    timedelta(seconds=-1),
+                    refresh_token_id=refresh.id,
+                )
+                response = await client.get(expired)
+                self.assertEqual(response.status, 403)
+                hass.auth.async_remove_refresh_token(refresh)
+                response = await client.get(links["provision"])
+                self.assertEqual(response.status, 403)
             await hass.async_stop()
 
     async def test_setup_failure_cleanup_and_error_classification(self):

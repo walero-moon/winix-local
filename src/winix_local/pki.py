@@ -6,7 +6,7 @@ import secrets
 import string
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
@@ -42,6 +42,8 @@ def create_bundle(
     https_port: int = 18443,
     *,
     model: str,
+    issuer: Optional[tuple[x509.Certificate, rsa.RSAPrivateKey]] = None,
+    retain_ca_key: bool = True,
 ) -> InstallationConfig:
     """Create once. Caller validates MAC/hosts and runs this in an executor."""
     model = validate_model(model)
@@ -56,45 +58,49 @@ def create_bundle(
 
     restrict_private(directory, directory=True)
 
-    ca_key = rsa.generate_private_key(
-        public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE_BITS
-    )
-    ca_name = x509.Name(
-        [x509.NameAttribute(NameOID.COMMON_NAME, "Winix Local installation CA")]
-    )
-    ca = (
-        x509.CertificateBuilder()
-        .subject_name(ca_name)
-        .issuer_name(ca_name)
-        .public_key(ca_key.public_key())
-        .serial_number(x509.random_serial_number())
-        .not_valid_before(CERTIFICATE_NOT_BEFORE)
-        .not_valid_after(CERTIFICATE_NOT_AFTER)
-        .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
-        .add_extension(
-            x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
-            critical=False,
+    if issuer is None:
+        ca_key = rsa.generate_private_key(
+            public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE_BITS
         )
-        .add_extension(
-            x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
-            critical=False,
+        ca_name = x509.Name(
+            [x509.NameAttribute(NameOID.COMMON_NAME, "Winix Local installation CA")]
         )
-        .add_extension(
-            x509.KeyUsage(
-                digital_signature=False,
-                content_commitment=False,
-                key_encipherment=False,
-                data_encipherment=False,
-                key_agreement=False,
-                key_cert_sign=True,
-                crl_sign=True,
-                encipher_only=False,
-                decipher_only=False,
-            ),
-            critical=True,
+        ca = (
+            x509.CertificateBuilder()
+            .subject_name(ca_name)
+            .issuer_name(ca_name)
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(CERTIFICATE_NOT_BEFORE)
+            .not_valid_after(CERTIFICATE_NOT_AFTER)
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(
+                x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()),
+                critical=False,
+            )
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=False,
+                    content_commitment=False,
+                    key_encipherment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=True,
+                    crl_sign=True,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                critical=True,
+            )
+            .sign(ca_key, hashes.SHA256())
         )
-        .sign(ca_key, hashes.SHA256())
-    )
+    else:
+        ca, ca_key = issuer
+        ca_name = ca.subject
 
     def serialize_private_key(key):
         return key.private_bytes(
@@ -103,7 +109,8 @@ def create_bundle(
             serialization.NoEncryption(),
         )
 
-    private_write(directory / "ca.key", serialize_private_key(ca_key))
+    if retain_ca_key:
+        private_write(directory / "ca.key", serialize_private_key(ca_key))
     private_write(directory / "ca.pem", ca.public_bytes(serialization.Encoding.PEM))
 
     for name, common_name, hosts, extended_usage in (
@@ -122,8 +129,8 @@ def create_bundle(
             .issuer_name(ca_name)
             .public_key(key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(CERTIFICATE_NOT_BEFORE)
-            .not_valid_after(CERTIFICATE_NOT_AFTER)
+            .not_valid_before(max(CERTIFICATE_NOT_BEFORE, ca.not_valid_before_utc))
+            .not_valid_after(min(CERTIFICATE_NOT_AFTER, ca.not_valid_after_utc))
             .add_extension(
                 x509.BasicConstraints(ca=False, path_length=None), critical=True
             )
@@ -156,6 +163,31 @@ def create_bundle(
             certificate.public_bytes(serialization.Encoding.PEM),
         )
 
+    return write_configuration(
+        directory,
+        mac,
+        model,
+        server_host,
+        mqtt_host,
+        mqtt_port,
+        http_port,
+        https_port,
+        ca,
+    )
+
+
+def write_configuration(
+    directory: Path,
+    mac: str,
+    model: str,
+    server_host: str,
+    mqtt_host: str,
+    mqtt_port: int,
+    http_port: int,
+    https_port: int,
+    ca: x509.Certificate,
+) -> InstallationConfig:
+    """Write matching private registration settings and public provisioning data."""
     token = "".join(
         secrets.choice(string.ascii_letters + string.digits)
         for _ in range(REGISTRATION_TOKEN_LENGTH)

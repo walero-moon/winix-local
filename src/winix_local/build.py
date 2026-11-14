@@ -25,6 +25,7 @@ FIXED_ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 CORE_FILES = (
     "__init__.py",
     "backend.py",
+    "certificate_setup.py",
     "catalog.json",
     "const.py",
     "installation.py",
@@ -39,6 +40,7 @@ ADAPTER_FILES = (
     "__init__.py",
     "config_flow.py",
     "coordinator.py",
+    "downloads.py",
     "entity.py",
     "fan.py",
     "runtime.py",

@@ -3,18 +3,96 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect your local Winix",
-        "description": "First run the provisioning tool to create an installation bundle and copy it to /config/winix_local/<MAC>/. Configure the MQTT integration with the same broker. Enter the purifier MAC below.",
+        "title": "Set up Winix Local",
+        "menu_options": {
+          "connection": "Set up certificates and local endpoints",
+          "existing": "Use an existing installation bundle"
+        }
+      },
+      "connection": {
+        "title": "Local connection settings",
+        "description": "Configure the Home Assistant MQTT integration separately to use the same broker. Enter the purifier-accessible TLS endpoint below. The registration host must reach this HA instance on the HTTP/HTTPS ports below (publish these ports when using HA Container). The exact model and MAC are available from the provisioning tool\u2019s read-only handshake. Only the 5510 has been hardware verified.",
+        "data": {
+          "mac": "Purifier MAC address",
+          "model": "Exact device model (for example 5520_US)",
+          "server_host": "HA registration server LAN hostname or IPv4 address",
+          "http_port": "Registration HTTP port",
+          "https_port": "Registration HTTPS port",
+          "mqtt_host": "MQTT broker LAN hostname or IPv4 address",
+          "mqtt_port": "Purifier MQTT TLS port"
+        }
+      },
+      "certificate_source": {
+        "title": "Choose certificate source",
+        "menu_options": {
+          "generate": "Generate a dedicated Winix CA and certificates",
+          "issuer": "Issue certificates with my CA and signing key",
+          "certificates": "Import already-issued certificates"
+        }
+      },
+      "generate": {
+        "title": "Generate certificates",
+        "description": "Create a dedicated Winix CA, registration-server, broker, and device certificates. Retention is off by default: the CA signing key is used in memory and is not saved. Without it, issuing replacement certificates will require a new CA and reprovisioning. If retained, the key is stored in HA\u2019s private configuration directory and may be included in HA backups. Restrict access to HA and backups. The broker never receives the CA signing key.",
+        "data": {
+          "retain_ca_key": "Retain the CA signing key on HA"
+        }
+      },
+      "issuer": {
+        "title": "Use your CA to issue certificates",
+        "description": "Paste one PEM CA certificate and its unencrypted RSA signing key. This profile supports one RSA CA directly signing RSA certificates; intermediate chains are not supported. Keys must be at least 2048 bits. A dedicated Winix CA limits the impact of an HA compromise. If retention is off, your imported signing key is not written to disk. Keep your original CA key backup.",
+        "data": {
+          "ca_pem": "CA certificate (PEM)",
+          "ca_key": "CA signing key (PEM)",
+          "retain_ca_key": "Retain the CA signing key on HA"
+        }
+      },
+      "certificates": {
+        "title": "Import issued certificates",
+        "description": "Paste one CA and three certificate/key pairs signed directly by that CA (RSA, at least 2048 bits). The registration and broker certificates need server-auth usage and exact hostname/IP SANs. The device certificate needs client-auth usage and its CN must be the uppercase MAC without separators. CA signing key is optional; provide it only if you want HA to retain it. Private values are not prefilled after errors.",
+        "data": {
+          "ca_pem": "CA certificate (PEM)",
+          "ca_key": "Optional CA signing key (PEM)",
+          "auth_pem": "Registration server certificate (PEM)",
+          "auth_key": "Registration server private key (PEM)",
+          "broker_pem": "MQTT broker server certificate (PEM)",
+          "broker_key": "MQTT broker server private key (PEM)",
+          "device_pem": "Purifier client certificate (PEM)",
+          "device_key": "Purifier client private key (PEM)",
+          "retain_ca_key": "Retain the supplied CA signing key on HA"
+        }
+      },
+      "confirm": {
+        "title": "Create local installation",
+        "description": "Device: {model} ({mac}). Purifier MQTT endpoint: {mqtt_host}:{mqtt_port}. Retain CA signing key: {retained}.\n\nSubmitting saves a private installation without changing your broker or purifier. HA will start its registration listeners when the entry loads. Open the entry\u2019s Configure menu afterward to download the broker certificate package and public provision.json. Install the broker package, then run `winix-local setup --config provision.json` on a computer connected to the purifier setup Wi-Fi. Configure HA\u2019s MQTT integration to use this same broker. Existing files are never overwritten."
+      },
+      "existing": {
+        "title": "Use an existing installation",
+        "description": "Enter the MAC for the bundle already installed at /config/winix_local/<MAC>/. Configure HA\u2019s MQTT integration to use the same broker.",
         "data": {
           "mac": "Purifier MAC address"
         }
       }
     },
     "error": {
-      "invalid_bundle": "Bundle missing or invalid. Check /config/winix_local/<MAC>/ and the installation guide."
+      "invalid_settings": "Check the exact model, MAC, LAN hosts and distinct registration ports.",
+      "invalid_certificates": "Certificates or keys are invalid, expired, mismatched, or incompatible with the required identity, issuer, hostname or purpose. Re-enter the PEM material; private values were not retained in the form.",
+      "bundle_exists": "An installation already exists for this MAC. Use the existing-bundle path; it will not be replaced.",
+      "creation_failed": "Could not create the private installation. Check directory access and certificate material.",
+      "invalid_bundle": "Bundle missing or invalid. Check /config/winix_local/<MAC>/."
     },
     "abort": {
       "already_configured": "This purifier is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Download local setup files",
+        "description": "[Download broker certificate package]({broker}) \u2014 contains the broker\u2019s private key. Keep it private. Includes broker-neutral authentication and exact topic-permission requirements; apply these using your broker\u2019s own settings. The CA signing key is never included.\n\n[Download public provisioning configuration]({provision}) \u2014 use with `winix-local setup --config provision.json`. It contains no token, private key or Wi-Fi password.\n\nLinks expire after five minutes and require your administrator login to remain valid. Reopen this dialog for new links. HA\u2019s MQTT integration must use the same broker. Neither download changes the broker or purifier."
+      }
+    },
+    "abort": {
+      "administrator_required": "Sign in as a Home Assistant administrator to download setup files."
     }
   }
 }
