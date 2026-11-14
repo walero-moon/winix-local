@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from typing import TypedDict, Union
 
-from .wire import device_id
+from .wire import device_id, validate_model
 
 
 class ProvisioningConfig(TypedDict):
@@ -40,4 +40,5 @@ def load_bundle(directory: Union[str, Path]) -> InstallationConfig:
     )
 
     device_id(config["mac"], config["token"])
+    validate_model(config["model"])
     return config

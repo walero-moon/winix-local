@@ -80,13 +80,24 @@ def tearDownModule():
 
 @unittest.skipIf(HomeAssistant is None, "requires the Home Assistant runtime")
 class RuntimeTests(unittest.IsolatedAsyncioTestCase):
-    async def test_import_entities_receive_and_nonretained_commands(self):
+    async def test_models_share_entities_subscriptions_and_nonretained_commands(self):
+        for model, display_name, sensor_count in (
+            ("5510_US", "5510", 6),
+            ("5520_US", "5520", 6),
+            ("FUTURE_MODEL", "FUTURE_MODEL", 2),
+        ):
+            with self.subTest(model=model):
+                await self.check_model_runtime(model, display_name, sensor_count)
+
+    async def check_model_runtime(self, model, display_name, sensor_count):
         for name in ("config_flow", "sensor", "switch", "fan", "_core.backend"):
             importlib.import_module("custom_components.winix_local." + name)
         from custom_components.winix_local.coordinator import WinixCoordinator
         from custom_components.winix_local.fan import WinixFan
         from custom_components.winix_local.switch import PlasmaSwitch
         from custom_components.winix_local.sensor import async_setup_entry
+        from custom_components.winix_local._core.model import load_builtin_catalog
+        from homeassistant.exceptions import HomeAssistantError
 
         with tempfile.TemporaryDirectory() as directory:
             hass = HomeAssistant(directory)
@@ -96,15 +107,17 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 {
                     "mac": "AABBCCDDEEFF",
                     "token": "TESTTOKEN1",
-                    "model": "5510_US",
+                    "model": model,
                     "server_host": "127.0.0.1",
                     "mqtt_host": "127.0.0.1",
                     "mqtt_port": 8883,
                     "http_port": 18080,
                     "https_port": 18443,
                 },
+                catalog=load_builtin_catalog(),
             )
             coordinator.async_set_updated_data = Mock()
+
             with (
                 patch(
                     "custom_components.winix_local.coordinator.mqtt.is_connected",
@@ -114,16 +127,33 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                     "custom_components.winix_local.coordinator.mqtt.async_publish",
                     new_callable=AsyncMock,
                 ) as publish,
+                patch(
+                    "custom_components.winix_local.coordinator.mqtt.async_wait_for_mqtt_client",
+                    new_callable=AsyncMock,
+                    return_value=True,
+                ),
+                patch(
+                    "custom_components.winix_local.coordinator.mqtt.async_subscribe",
+                    new_callable=AsyncMock,
+                    side_effect=lambda *args, **kwargs: Mock(),
+                ) as subscribe,
             ):
+                await coordinator.start()
+                self.assertEqual(
+                    [call.args[1] for call in subscribe.call_args_list],
+                    [
+                        f"Winix/Conn/Air01/{model}/{coordinator.device_id}",
+                        f"Winix/Event/Air01/{model}/{coordinator.device_id}",
+                    ],
+                )
                 self.assertFalse(coordinator.online)
-                from homeassistant.exceptions import HomeAssistantError
-
                 with self.assertRaises(HomeAssistantError):
                     await coordinator.send({"A04": "01"})
+
                 data = {
                     "header": {"deviceId": coordinator.device_id},
                     "values": {
-                        "modelId": "5510_US",
+                        "modelId": model,
                         "deviceGroup": "Air01",
                         "apiNo": "A210",
                         "attributes": {
@@ -138,31 +168,129 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                         },
                     },
                 }
-                msg = Mock(payload=json.dumps(data), retain=True)
-                coordinator.receive(msg)
+                message = Mock(payload=json.dumps(data), retain=True)
+                coordinator.receive(message)
                 self.assertFalse(coordinator.online)
-                msg.retain = False
-                coordinator.receive(msg)
+
+                message.retain = False
+                coordinator.receive(message)
                 self.assertTrue(coordinator.online)
+                last_seen = coordinator.last_telemetry_monotonic
+                updates = coordinator.async_set_updated_data.call_count
+
+                # Another model cannot update this device or extend availability,
+                # even when its MAC/token identity and attribute names match.
+                data["values"]["modelId"] = "OTHER_MODEL"
+                data["values"]["attributes"]["A04"] = "03"
+                coordinator.receive(Mock(payload=json.dumps(data), retain=False))
+                self.assertEqual(coordinator.last_telemetry_monotonic, last_seen)
+                self.assertEqual(coordinator.async_set_updated_data.call_count, updates)
+                self.assertEqual(coordinator.attributes["A04"], "02")
+
                 fan = WinixFan(coordinator)
+                self.assertEqual(fan.unique_id, "AABBCCDDEEFF_fan")
+                self.assertEqual(fan.device_info["model"], display_name)
+                self.assertEqual(
+                    fan.device_info["name"], f"Winix {display_name} DDEEFF"
+                )
                 self.assertEqual(fan.percentage, 50)
+
                 await fan.async_set_percentage(25)
+                self.assertEqual(
+                    publish.call_args.args[1],
+                    f"Winix/Control/Air01/{model}/{coordinator.device_id}",
+                )
                 sent = json.loads(publish.call_args.args[2])
+                self.assertEqual(sent["values"]["modelId"], model)
                 self.assertEqual(
                     sent["values"]["attributes"], {"A02": "1", "A03": "02", "A04": "01"}
                 )
                 self.assertFalse(publish.call_args.kwargs["retain"])
                 self.assertEqual(fan.percentage, 50)  # no optimistic state
                 self.assertFalse(PlasmaSwitch(coordinator).is_on)
+
                 add = Mock()
                 entry = Mock(runtime_data=coordinator)
                 await async_setup_entry(hass, entry, add)
                 entities = add.call_args.args[0]
-                self.assertEqual(len(entities), 6)
-                gaslevel = next(e for e in entities if e.key == "S07")
-                self.assertEqual(gaslevel.native_value, "Poor")
+                self.assertEqual(len(entities), sensor_count)
+                if sensor_count > 2:
+                    gaslevel = next(
+                        entity for entity in entities if entity.key == "S07"
+                    )
+                    self.assertEqual(gaslevel.native_value, "Poor")
+
                 coordinator.last_telemetry_monotonic -= 901
                 self.assertFalse(fan.available)
+                await coordinator.stop()
+
+            await hass.async_stop()
+
+    async def test_config_flow_uses_catalog_names_and_unknown_model_fallback(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from custom_components.winix_local._core.pki import create_bundle
+
+        for model, display_name in (
+            ("5510_US", "5510"),
+            ("5520_US", "5520"),
+            ("FUTURE_MODEL", "FUTURE_MODEL"),
+        ):
+            with self.subTest(model=model), tempfile.TemporaryDirectory() as directory:
+                hass = HomeAssistant(directory)
+                bundle_directory = Path(directory) / "winix_local/AABBCCDDEEFF"
+                create_bundle(
+                    bundle_directory,
+                    "AABBCCDDEEFF",
+                    "127.0.0.1",
+                    "127.0.0.1",
+                    model=model,
+                )
+                flow = WinixLocalFlow()
+                flow.hass = hass
+                flow.async_set_unique_id = AsyncMock()
+                flow._abort_if_unique_id_configured = Mock()
+                flow.async_create_entry = Mock(return_value={"type": "create_entry"})
+
+                result = await flow.async_step_user({"mac": "AA:BB:CC:DD:EE:FF"})
+                self.assertEqual(result["type"], "create_entry")
+                self.assertEqual(
+                    flow.async_create_entry.call_args.kwargs,
+                    {
+                        "title": f"Winix {display_name} DDEEFF",
+                        "data": {"mac": "AABBCCDDEEFF"},
+                    },
+                )
+                flow.async_set_unique_id.assert_awaited_once_with("AABBCCDDEEFF")
+                await hass.async_stop()
+
+    async def test_config_flow_still_rejects_bundle_mac_mismatch(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from custom_components.winix_local._core.pki import create_bundle
+
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            bundle_directory = Path(directory) / "winix_local/AABBCCDDEEFF"
+            create_bundle(
+                bundle_directory,
+                "112233445566",
+                "127.0.0.1",
+                "127.0.0.1",
+                model="5520_US",
+            )
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            flow.async_create_entry = Mock()
+            flow.async_show_form = Mock(return_value={"type": "form"})
+
+            result = await flow.async_step_user({"mac": "AABBCCDDEEFF"})
+            self.assertEqual(result["type"], "form")
+            self.assertEqual(
+                flow.async_show_form.call_args.kwargs["errors"],
+                {"base": "invalid_bundle"},
+            )
+            flow.async_create_entry.assert_not_called()
             await hass.async_stop()
 
     async def test_setup_failure_cleanup_and_error_classification(self):
@@ -176,7 +304,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             hass = HomeAssistant(directory)
             root = __import__("pathlib").Path(directory) / "winix_local/AABBCCDDEEFF"
-            create_bundle(root, "AABBCCDDEEFF", "127.0.0.1", "127.0.0.1")
+            create_bundle(
+                root, "AABBCCDDEEFF", "127.0.0.1", "127.0.0.1", model="5510_US"
+            )
             entry = SimpleNamespace(data={"mac": "AABBCCDDEEFF"})
 
             # Expected environment failures request a retry. Unexpected bugs and
@@ -226,7 +356,9 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             hass = HomeAssistant(directory)
             root = __import__("pathlib").Path(directory) / "winix_local/AABBCCDDEEFF"
-            create_bundle(root, "AABBCCDDEEFF", "127.0.0.1", "127.0.0.1")
+            create_bundle(
+                root, "AABBCCDDEEFF", "127.0.0.1", "127.0.0.1", model="5510_US"
+            )
             entry = SimpleNamespace(
                 data={"mac": "AABBCCDDEEFF"}, async_on_unload=Mock()
             )

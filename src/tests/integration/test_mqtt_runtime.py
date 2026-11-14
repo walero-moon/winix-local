@@ -37,7 +37,7 @@ class BrokerRuntimeTests(unittest.TestCase):
             address = "127.0.0.1" if host == bundle["mqtt_host"] else host
             return original_resolve(address, port, *args, **kwargs)
 
-        topic_suffix = f"Air01/5510_US/{bundle['mac']}_{bundle['token']}"
+        topic_suffix = f"Air01/{bundle['model']}/{bundle['mac']}_{bundle['token']}"
         event_topic = "Winix/Event/" + topic_suffix
         control_topic = "Winix/Control/" + topic_suffix
         received_events = queue.Queue()
@@ -122,7 +122,9 @@ class BrokerRuntimeTests(unittest.TestCase):
                 # Mosquitto may accept a subscription filter; ACLs still must
                 # filter deliveries outside the certificate's device identity.
                 device.publish(
-                    "Winix/Event/Air01/5510_US/OTHER_DEVICE", b"forbidden", qos=1
+                    f"Winix/Event/Air01/{bundle['model']}/OTHER_DEVICE",
+                    b"forbidden",
+                    qos=1,
                 ).wait_for_publish(5)
                 with self.assertRaises(queue.Empty):
                     received_events.get(timeout=1)

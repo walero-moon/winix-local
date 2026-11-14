@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 from .installation import InstallationConfig
+from .wire import mac_id, validate_model
 
 # Preserve the established validity window. A device still needs a correct clock;
 # these dates do not bypass certificate verification or implement renewal.
@@ -39,8 +40,13 @@ def create_bundle(
     mqtt_port: int = 8883,
     http_port: int = 18080,
     https_port: int = 18443,
+    *,
+    model: str,
 ) -> InstallationConfig:
     """Create once. Caller validates MAC/hosts and runs this in an executor."""
+    model = validate_model(model)
+    mac = mac_id(mac)
+
     directory = Path(directory)
     directory.mkdir(mode=0o700, parents=True, exist_ok=True)
     if any(directory.iterdir()):
@@ -146,7 +152,7 @@ def create_bundle(
         mqtt_port=mqtt_port,
         http_port=http_port,
         https_port=https_port,
-        model="5510_US",
+        model=model,
     )
     private_write(
         directory / "bundle.json", (json.dumps(config, indent=2) + "\n").encode()

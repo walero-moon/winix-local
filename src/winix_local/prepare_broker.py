@@ -7,11 +7,11 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import secrets
 import shutil
 
-from .installation import InstallationConfig
+from .installation import InstallationConfig, load_bundle
+from .wire import device_id, mac_id, topic, validate_model
 
 # Preserve Mosquitto's established $7$ password-file encoding. This is its
 # compatibility parameter, rather than a general-purpose password KDF policy.
@@ -36,14 +36,15 @@ def encode_broker_password(password: str, salt: bytes) -> str:
 
 
 def device_acl(config: InstallationConfig) -> str:
-    mac = config["mac"]
-    device_topic_suffix = f"Air01/5510_US/{mac}_{config['token']}"
+    mac = mac_id(config["mac"])
+    identity = device_id(mac, config["token"])
+    model = validate_model(config["model"])
 
     return (
         f"user {mac}\n"
-        f"topic read Winix/Control/{device_topic_suffix}\n"
-        f"topic write Winix/Conn/{device_topic_suffix}\n"
-        f"topic write Winix/Event/{device_topic_suffix}\n"
+        f"topic read {topic('Control', identity, model)}\n"
+        f"topic write {topic('Conn', identity, model)}\n"
+        f"topic write {topic('Event', identity, model)}\n"
     )
 
 
@@ -69,11 +70,8 @@ tls_version tlsv1.2
 
 
 def export_broker_files(bundle_directory: Path, output_directory: Path) -> None:
-    config: InstallationConfig = json.loads(
-        (bundle_directory / "bundle.json").read_text()
-    )
-    if not re.fullmatch("[0-9A-F]{12}", config["mac"]):
-        raise ValueError("Invalid MAC")
+    config = load_bundle(bundle_directory)
+    acl = device_acl(config)
 
     output_directory.mkdir(parents=True, exist_ok=False, mode=0o700)
     for name in ("ca.pem", "broker.pem", "broker.key"):
@@ -89,7 +87,7 @@ def export_broker_files(bundle_directory: Path, output_directory: Path) -> None:
         json.dumps({"username": "homeassistant", "password": password}) + "\n"
     )
 
-    (output_directory / "device.acl").write_text(device_acl(config))
+    (output_directory / "device.acl").write_text(acl)
     (output_directory / "backend.acl").write_text(
         "user homeassistant\ntopic read Winix/Conn/#\ntopic read Winix/Event/#\n"
         "topic write Winix/Control/#\ntopic readwrite homeassistant/#\n"

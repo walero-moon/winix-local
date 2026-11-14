@@ -78,7 +78,8 @@ sys.path.insert(0, sys.argv[1])
 from custom_components.winix_local._core.model import load_builtin_catalog
 from custom_components.winix_local._core.wire import device_id, topic
 assert len(load_builtin_catalog().model_ids) == 59
-assert topic('Control', device_id('AABBCCDDEEFF', 'TESTTOKEN1')) == 'Winix/Control/Air01/5510_US/AABBCCDDEEFF_TESTTOKEN1'
+for model in ('5510_US', '5520_US'):
+    assert topic('Control', device_id('AABBCCDDEEFF', 'TESTTOKEN1'), model) == f'Winix/Control/Air01/{model}/AABBCCDDEEFF_TESTTOKEN1'
 assert 'winix_local' not in sys.modules
 assert not any(name.startswith('homeassistant') for name in sys.modules)
 print('isolated archive imports passed')

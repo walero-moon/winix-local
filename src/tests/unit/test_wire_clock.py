@@ -12,34 +12,99 @@ from winix_local import wire
 
 
 class WireTests(unittest.TestCase):
-    def test_controls_and_identity(self):
+    def test_shared_controls_and_exact_model_topics(self):
         identity = wire.device_id("AA:BB:CC:DD:EE:FF", "TESTTOKEN1")
-        self.assertEqual(
-            wire.control(identity, {"A04": "01"})["values"]["apiNo"], "A211"
-        )
-        for attrs in ({"P01": "0"}, {"A04": "08"}, {"A07": "2"}, {}):
-            with self.assertRaises(ValueError):
-                wire.control(identity, attrs)
+
+        for model in ("5510_US", "5520_US", "FutureModel_01"):
+            with self.subTest(model=model):
+                command = wire.control(identity, {"A04": "01"}, model)
+                self.assertEqual(command["values"]["apiNo"], "A211")
+                self.assertEqual(command["values"]["modelId"], model)
+                self.assertEqual(
+                    wire.topic("Control", identity, model),
+                    f"Winix/Control/Air01/{model}/{identity}",
+                )
+
+                for attributes in ({"P01": "0"}, {"A04": "08"}, {"A07": "2"}, {}):
+                    with self.assertRaises(ValueError):
+                        wire.control(identity, attributes, model)
+
         with self.assertRaises(ValueError):
             wire.device_id("bad", "TESTTOKEN1")
 
-    def test_actual_telemetry_and_wrong_device(self):
+    def test_telemetry_is_scoped_to_exact_device_and_model(self):
         identity = wire.device_id("AABBCCDDEEFF", "TESTTOKEN1")
-        data = {
-            "header": {"deviceId": identity},
-            "values": {
-                "modelId": "5510_US",
-                "deviceGroup": "Air01",
-                "apiNo": "A210",
-                "attributes": {"A04": "02"},
-            },
-        }
-        self.assertEqual(wire.telemetry(json.dumps(data), identity), {"A04": "02"})
-        with self.assertRaises(ValueError):
-            wire.telemetry(json.dumps(data), identity + "other")
-        data["values"]["attributes"] = {"A04": {}}
-        with self.assertRaises(ValueError):
-            wire.telemetry(json.dumps(data), identity)
+
+        for model in ("5510_US", "5520_US", "FutureModel_01"):
+            with self.subTest(model=model):
+                data = {
+                    "header": {"deviceId": identity},
+                    "values": {
+                        "modelId": model,
+                        "deviceGroup": "Air01",
+                        "apiNo": "A210",
+                        "attributes": {"A04": "02"},
+                    },
+                }
+                payload = json.dumps(data)
+                self.assertEqual(
+                    wire.telemetry(payload, identity, model), {"A04": "02"}
+                )
+
+                for wrong_identity, wrong_model in (
+                    (identity + "other", model),
+                    (identity, model + "_other"),
+                    (identity, model.swapcase()),
+                ):
+                    with self.assertRaises(ValueError):
+                        wire.telemetry(payload, wrong_identity, wrong_model)
+
+                data["values"]["attributes"] = {"A04": {}}
+                with self.assertRaises(ValueError):
+                    wire.telemetry(json.dumps(data), identity, model)
+
+    def test_model_identifiers_cannot_escape_their_topic_segment(self):
+        identity = wire.device_id("AABBCCDDEEFF", "TESTTOKEN1")
+
+        for model in (
+            "",
+            "5520/US",
+            "5520+US",
+            "5520#",
+            "5520 US",
+            "5520\nUS",
+            "5520\x00US",
+            "\u00e9",
+            "A" * 65,
+            None,
+        ):
+            with self.subTest(model=model):
+                with self.assertRaises(ValueError):
+                    wire.validate_model(model)
+                with self.assertRaises(ValueError):
+                    wire.topic("Control", identity, model)
+                with self.assertRaises(ValueError):
+                    wire.control(identity, {"A04": "01"}, model)
+                with self.assertRaises(ValueError):
+                    wire.telemetry("{}", identity, model)
+
+        self.assertEqual(wire.validate_model("A" * 64), "A" * 64)
+        self.assertEqual(wire.validate_model("5520_US"), "5520_US")
+
+    def test_identity_parser_reads_model_before_nul_delimited_firmware(self):
+        self.assertEqual(wire.parse_device_model(b"5520_US\x001.0.3"), "5520_US")
+        self.assertEqual(wire.parse_device_model(b"FutureModel_01"), "FutureModel_01")
+
+        for identity in (
+            b"",
+            b"\x001.0.3",
+            b"5520_US1.0.3",
+            b"5520_US\n",
+            b"5520/US\x001.0.3",
+            b"\xff\x001.0.3",
+        ):
+            with self.subTest(identity=identity), self.assertRaises(ValueError):
+                wire.parse_device_model(identity)
 
 
 class ClockTests(unittest.TestCase):

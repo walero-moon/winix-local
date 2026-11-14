@@ -14,7 +14,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from ._core.installation import InstallationConfig
-from ._core.wire import device_id, topic, telemetry, control
+from ._core.wire import control, device_id, telemetry, topic, validate_model
 
 if TYPE_CHECKING:
     from ._core.backend import RegistrationServer
@@ -48,6 +48,10 @@ class WinixCoordinator(DataUpdateCoordinator):
         self.config = config
         self.catalog = catalog
         self.device_id = device_id(config["mac"], config["token"])
+        self.model = validate_model(config["model"])
+
+        model_info = catalog.get(self.model) if catalog is not None else None
+        self.model_name = model_info.name if model_info is not None else self.model
 
         self.attributes: dict[str, str] = {}
         self.last_telemetry_monotonic: float = 0
@@ -78,7 +82,10 @@ class WinixCoordinator(DataUpdateCoordinator):
             for kind in ("Conn", "Event"):
                 self.subscription_unsubscribers.append(
                     await mqtt.async_subscribe(
-                        self.hass, topic(kind, self.device_id), self.receive, qos=1
+                        self.hass,
+                        topic(kind, self.device_id, self.model),
+                        self.receive,
+                        qos=1,
                     )
                 )
         except BaseException:
@@ -92,7 +99,7 @@ class WinixCoordinator(DataUpdateCoordinator):
             return
 
         try:
-            attributes = telemetry(message.payload, self.device_id)
+            attributes = telemetry(message.payload, self.device_id, self.model)
         except (ValueError, KeyError, TypeError, AttributeError):
             _LOGGER.warning("Rejected malformed or unrelated Winix telemetry")
             return
@@ -105,12 +112,12 @@ class WinixCoordinator(DataUpdateCoordinator):
         if not self.online:
             raise HomeAssistantError("Purifier is unavailable; command was not queued")
 
-        payload = control(self.device_id, attributes)
+        payload = control(self.device_id, attributes, self.model)
 
         # QoS 0, non-retained, avoids replaying old power/fan commands on reconnect.
         await mqtt.async_publish(
             self.hass,
-            topic("Control", self.device_id),
+            topic("Control", self.device_id, self.model),
             json.dumps(payload, separators=(",", ":")),
             qos=0,
             retain=False,

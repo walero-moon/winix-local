@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a private installation bundle, then configure stock 5510 Wi-Fi.
+"""Prepare an installation bundle, then configure a stock Winix air purifier.
 
 No Winix cloud requests. No automatic Wi-Fi switching or router changes.
 """
@@ -14,6 +14,7 @@ import re
 import secrets
 import socket
 import sys
+from typing import Optional
 
 from .installation import ProvisioningConfig
 from .setup_protocol import (
@@ -25,7 +26,7 @@ from .setup_protocol import (
     server_body,
     wifi_body,
 )
-from .wire import mac_id
+from .wire import mac_id, parse_device_model, validate_model
 
 SETUP_TIMEOUT_SECONDS = 10
 HANDSHAKE_COMMAND = 1
@@ -49,6 +50,12 @@ def build_parser() -> argparse.ArgumentParser:
         "init", help="Generate private CA, credentials and broker configuration once"
     )
     init_parser.add_argument("--mac", required=True)
+    init_parser.add_argument(
+        "--model",
+        help="Exact device model; omit to discover it over the purifier setup hotspot",
+    )
+    init_parser.add_argument("--setup-host", default="192.168.43.1")
+    init_parser.add_argument("--setup-port", type=int, default=47000)
     init_parser.add_argument("--server-host", required=True)
     init_parser.add_argument("--mqtt-host", required=True)
     init_parser.add_argument("--mqtt-port", type=int, default=8883)
@@ -102,6 +109,12 @@ def initialize_installation(args: argparse.Namespace) -> None:
         ipaddress.IPv4Address(args.server_host)
         ipaddress.IPv4Address(args.offline_device_ip)
 
+    model = (
+        validate_model(args.model)
+        if args.model is not None
+        else discover_device_model(mac, args.setup_host, args.setup_port)
+    )
+
     # Provisioning alone uses stdlib/OpenSSL; only bundle creation needs PKI deps.
     from .pki import create_bundle
 
@@ -113,6 +126,7 @@ def initialize_installation(args: argparse.Namespace) -> None:
         mqtt_port=args.mqtt_port,
         http_port=args.http_port,
         https_port=args.https_port,
+        model=model,
     )
 
     if args.offline_device_ip:
@@ -137,22 +151,43 @@ def load_provisioning_config(path: Path) -> ProvisioningConfig:
     validate_hostname(config["server_host"])
     validate_hostname(config["mqtt_host"])
 
-    if config.get("model") != "5510_US":
-        raise ValueError("Only 5510_US is validated")
+    validate_model(config["model"])
 
     return config
 
 
-def verify_device(connection: socket.socket, key: bytes, nonce: bytes) -> None:
+def verify_device(
+    connection: socket.socket,
+    key: bytes,
+    nonce: bytes,
+    expected_model: Optional[str] = None,
+) -> str:
+    """Identify the peer before any configuration messages are sent."""
     connection.sendall(handshake(nonce))
     device_identity = decrypt_response(
         read_response(connection), key, HANDSHAKE_COMMAND
     )
+    model = parse_device_model(device_identity)
 
-    if not device_identity.startswith(b"5510_US"):
-        raise ValueError("Unexpected model; nothing was configured")
+    if expected_model is not None and model != expected_model:
+        raise ValueError(
+            f"Device model {model!r} does not match installation model {expected_model!r}; "
+            "nothing was configured"
+        )
 
-    print("5510_US identity verified.")
+    print(f"{model} identity verified.")
+    return model
+
+
+def discover_device_model(mac: str, setup_host: str, setup_port: int) -> str:
+    """Use the read-only setup handshake to discover the model for a new bundle."""
+    nonce = secrets.token_bytes(4)
+    key = secret_key(nonce, mac)
+
+    with socket.create_connection(
+        (setup_host, setup_port), timeout=SETUP_TIMEOUT_SECONDS
+    ) as connection:
+        return verify_device(connection, key, nonce)
 
 
 def configure_servers(
@@ -207,7 +242,7 @@ def provision_device(args: argparse.Namespace) -> None:
     with socket.create_connection(
         (args.setup_host, args.setup_port), timeout=SETUP_TIMEOUT_SECONDS
     ) as connection:
-        verify_device(connection, key, nonce)
+        verify_device(connection, key, nonce, expected_model=config["model"])
         if args.check_only:
             return
 

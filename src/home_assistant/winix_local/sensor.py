@@ -25,12 +25,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         ),
     ]
 
-    # The 5510 profile contains gas, brightness and RPM; it has no PM2.5 sensor.
+    # Create only the sensors listed in this device model's catalog profile.
     catalog = entry.runtime_data.catalog
     if catalog is None:
         catalog = await hass.async_add_executor_job(load_builtin_catalog)
 
-    model_id = entry.runtime_data.config.get("model", "5510_US")
+    model_id = entry.runtime_data.model
 
     for info in catalog.sensors_for(model_id):
         entities.append(

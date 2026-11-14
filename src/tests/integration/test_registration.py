@@ -26,15 +26,17 @@ class BackendTests(unittest.IsolatedAsyncioTestCase):
                 "AABBCCDDEEFF",
                 "127.0.0.1",
                 "127.0.0.1",
+                model="5520_US",
                 http_port=ports[0],
                 https_port=ports[1],
             )
+            self.assertEqual(config["model"], "5520_US")
             self.assertEqual(len(config["token"]), 10)
             self.assertNotIn(
                 "token", json.loads((Path(root) / "provision.json").read_text())
             )
             with self.assertRaises(ValueError):
-                pki.create_bundle(root, "AABBCCDDEEFF", "a", "b")
+                pki.create_bundle(root, "AABBCCDDEEFF", "a", "b", model="5520_US")
             server = backend.RegistrationServer(root, config)
             server.prepare()
             context = ssl.create_default_context(cafile=str(Path(root) / "ca.pem"))

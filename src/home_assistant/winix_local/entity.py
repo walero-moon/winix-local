@@ -14,9 +14,9 @@ class WinixEntity(CoordinatorEntity):
         self._attr_name = name
         self._attr_device_info = DeviceInfo(
             identifiers={("winix_local", mac)},
-            name=f"Winix 5510 {mac[-6:]}",
+            name=f"Winix {coordinator.model_name} {mac[-6:]}",
             manufacturer="Winix",
-            model="5510",
+            model=coordinator.model_name,
         )
 
     @property
