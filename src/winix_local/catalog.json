@@ -1,0 +1,522 @@
+{
+  "default_filter_hours": 6480,
+  "models": {
+    "5510_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "5510",
+      "profile": "gas_rpm"
+    },
+    "5520_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "5520",
+      "profile": "gas_rpm"
+    },
+    "5520_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "5520",
+      "profile": "gas_rpm"
+    },
+    "5530_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "5530",
+      "profile": "gas_rpm"
+    },
+    "9800": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "9800",
+      "profile": "gas"
+    },
+    "a400_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AT40",
+      "profile": "gas"
+    },
+    "ac100": {
+      "family": "air_conditioner",
+      "filter_hours": 8640,
+      "name": "EW**067-M*K",
+      "profile": "air_conditioner"
+    },
+    "ac101": {
+      "family": "air_conditioner",
+      "filter_hours": 8640,
+      "name": "EW**067-P*K",
+      "profile": "air_conditioner"
+    },
+    "azpueu": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "ZERO+",
+      "profile": "particulate10_gas"
+    },
+    "azsuus": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "AM90",
+      "profile": "gas"
+    },
+    "c5": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C5",
+      "profile": "gas"
+    },
+    "c545": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C545",
+      "profile": "gas"
+    },
+    "c5_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C545",
+      "profile": "gas"
+    },
+    "c5_id": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AC5U360-NWN",
+      "profile": "gas"
+    },
+    "c610_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "WXAP600",
+      "profile": "gas"
+    },
+    "c610_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C610",
+      "profile": "gas"
+    },
+    "c710_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C710",
+      "profile": "particulate25_index"
+    },
+    "c909": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "C909",
+      "profile": "gas"
+    },
+    "hera": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "HR1000",
+      "profile": "particulate10_gas"
+    },
+    "jp19m": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DXJ*193-***",
+      "profile": "dehumidifier"
+    },
+    "masterkor": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "MASTER(S)",
+      "profile": "particulate_all_gas"
+    },
+    "nk105": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "NK105",
+      "profile": "gas"
+    },
+    "primekor": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "TOWER PRIME",
+      "profile": "particulate_all_gas"
+    },
+    "t1": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "T1",
+      "profile": "particulate10_gas"
+    },
+    "t1000_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T1000",
+      "profile": "particulate25_gas"
+    },
+    "t1000_kr": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "TOWER PRIME+",
+      "profile": "particulate25_gas"
+    },
+    "t1000_pps": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "TOWER PRIME+ CAS(B)",
+      "profile": "particulate25_gas_co2"
+    },
+    "t500_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "WXAP500",
+      "profile": "particulate10"
+    },
+    "t500_eu": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T500",
+      "profile": "particulate10"
+    },
+    "t500_gb": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AT5U207-NWB",
+      "profile": "particulate10"
+    },
+    "t500_id": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AT5U207-NWI",
+      "profile": "particulate10"
+    },
+    "t500_jp": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AT5U207-NWJ",
+      "profile": "gas"
+    },
+    "t500_tw": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "威小淨",
+      "profile": "particulate10"
+    },
+    "t500_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T500",
+      "profile": "gas"
+    },
+    "t800_au": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "WXAP800",
+      "profile": "particulate25_gas"
+    },
+    "t800_eu": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T800",
+      "profile": "particulate25"
+    },
+    "t800_gb": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AT8U457-NWB",
+      "profile": "particulate25"
+    },
+    "t800_id": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "ZERO 360",
+      "profile": "particulate25_gas"
+    },
+    "t800_jp": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T800_JP",
+      "profile": "particulate25"
+    },
+    "t800_tw": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T800",
+      "profile": "particulate25_gas"
+    },
+    "t800_us": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "T810/T830",
+      "profile": "particulate25"
+    },
+    "titan": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "TITAN",
+      "profile": "particulate10_gas"
+    },
+    "tower_q": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "TOWER Q",
+      "profile": "particulate10"
+    },
+    "towerxq_wa": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "TOWER XQ",
+      "profile": "particulate25_gas"
+    },
+    "x17ac": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DX16L",
+      "profile": "dehumidifier"
+    },
+    "x19ac": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DX18L",
+      "profile": "dehumidifier"
+    },
+    "x20_kr": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DXW*20*-***",
+      "profile": "dehumidifier"
+    },
+    "x21_kr": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DXW*21*-***",
+      "profile": "dehumidifier"
+    },
+    "x22_kr": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DXW*22*-***",
+      "profile": "dehumidifier"
+    },
+    "x24_kr": {
+      "family": "dehumidifier",
+      "filter_hours": 8640,
+      "name": "DXW*24*-***",
+      "profile": "dehumidifier"
+    },
+    "xlc": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "XLC",
+      "profile": "gas"
+    },
+    "xq": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "ATX****-HWK/AGX***",
+      "profile": "particulate25_gas"
+    },
+    "xq20": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "ATX****-JWK",
+      "profile": "particulate25_gas"
+    },
+    "xqlaser": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "ATX****-IWK",
+      "profile": "particulate25_gas"
+    },
+    "xqpro_wa": {
+      "family": "air_purifier",
+      "filter_hours": 8640,
+      "name": "XQ PRO",
+      "profile": "particulate25_gas"
+    },
+    "zeros_eu": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AZSU350-JWE",
+      "profile": "particulate10"
+    },
+    "zeros_gb": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AZSU350-JWB",
+      "profile": "particulate10"
+    },
+    "zeros_id": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AZSU357-NWN",
+      "profile": "particulate10"
+    },
+    "zeros_tw": {
+      "family": "air_purifier",
+      "filter_hours": 6480,
+      "name": "AZSU337-NWT",
+      "profile": "particulate10"
+    }
+  },
+  "profiles": {
+    "air_conditioner": [
+      "indoor_temperature",
+      "outdoor_temperature",
+      "indoor_fan_speed",
+      "outdoor_fan_speed",
+      "current_compressor_speed",
+      "power_consumption"
+    ],
+    "dehumidifier": [],
+    "gas": [
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness"
+    ],
+    "gas_rpm": [
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness",
+      "rpm"
+    ],
+    "particulate10": [
+      "pm10_level",
+      "pm10",
+      "ambient_brightness"
+    ],
+    "particulate10_gas": [
+      "pm10_level",
+      "pm10",
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness"
+    ],
+    "particulate25": [
+      "pm2_5_level",
+      "pm2_5",
+      "ambient_brightness"
+    ],
+    "particulate25_gas": [
+      "pm2_5_level",
+      "pm2_5",
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness"
+    ],
+    "particulate25_gas_co2": [
+      "pm2_5_level",
+      "pm2_5",
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness",
+      "co2"
+    ],
+    "particulate25_index": [
+      "pm2_5_level",
+      "pm2_5",
+      "ambient_brightness",
+      "air_purification_index"
+    ],
+    "particulate_all_gas": [
+      "pm1_0_level",
+      "pm1_0",
+      "pm2_5_level",
+      "pm2_5",
+      "pm10_level",
+      "pm10",
+      "gas_sensor_level",
+      "gas_sensor",
+      "ambient_brightness"
+    ]
+  },
+  "schema_version": 1,
+  "sensors": {
+    "air_purification_index": {
+      "attribute": "S18",
+      "unit": "%"
+    },
+    "ambient_brightness": {
+      "attribute": "S14"
+    },
+    "co2": {
+      "attribute": "S17"
+    },
+    "current_compressor_speed": {
+      "attribute": "S05"
+    },
+    "gas_sensor": {
+      "attribute": "S08"
+    },
+    "gas_sensor_level": {
+      "attribute": "S07",
+      "levels": {
+        "1": "Good",
+        "2": "Fair",
+        "3": "Poor",
+        "4": "Very Poor"
+      }
+    },
+    "indoor_fan_speed": {
+      "attribute": "S03",
+      "unit": "rpm"
+    },
+    "indoor_temperature": {
+      "attribute": "S01"
+    },
+    "outdoor_fan_speed": {
+      "attribute": "S04",
+      "unit": "rpm"
+    },
+    "outdoor_temperature": {
+      "attribute": "S02"
+    },
+    "pm10": {
+      "attribute": "S06",
+      "device_class": "pm10",
+      "unit": "μg/m³"
+    },
+    "pm10_level": {
+      "attribute": "S05",
+      "levels": {
+        "1": "Good",
+        "2": "Fair",
+        "3": "Poor",
+        "4": "Very Poor"
+      }
+    },
+    "pm1_0": {
+      "attribute": "S02",
+      "device_class": "pm1",
+      "unit": "μg/m³"
+    },
+    "pm1_0_level": {
+      "attribute": "S01",
+      "levels": {
+        "1": "Good",
+        "2": "Fair",
+        "3": "Poor",
+        "4": "Very Poor"
+      }
+    },
+    "pm2_5": {
+      "attribute": "S04",
+      "device_class": "pm25",
+      "unit": "μg/m³"
+    },
+    "pm2_5_level": {
+      "attribute": "S03",
+      "levels": {
+        "1": "Good",
+        "2": "Fair",
+        "3": "Poor",
+        "4": "Very Poor"
+      }
+    },
+    "power_consumption": {
+      "attribute": "S06",
+      "device_class": "power",
+      "unit": "W"
+    },
+    "rpm": {
+      "attribute": "S15"
+    }
+  }
+}

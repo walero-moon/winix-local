@@ -1,0 +1,8 @@
+{
+  "name": "Winix Local",
+  "homeassistant": "2026.10.0",
+  "content_in_root": true,
+  "zip_release": true,
+  "filename": "winix_local.zip",
+  "hide_default_branch": true
+}

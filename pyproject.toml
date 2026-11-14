@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "winix-local"
+version = "0.1.0"
+description = "Local Winix registration, MQTT protocol and provisioning for Home Assistant"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = ["cryptography>=43,<47", "aiohttp>=3.9,<4"]
+
+[project.optional-dependencies]
+dev = ["black==25.1.0", "mypy>=1.15,<2", "build>=1.2,<2"]
+mqtt-test = ["paho-mqtt>=2,<3"]
+
+[project.scripts]
+winix-local = "winix_local.cli:main"
+winix-local-broker = "winix_local.prepare_broker:main"
+winix-local-build = "winix_local.build:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["winix_local*"]
+
+[tool.setuptools.package-data]
+winix_local = ["catalog.json"]
+
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+
+[tool.mypy]
+files = ["src/winix_local"]
+check_untyped_defs = true
+ignore_missing_imports = true
+follow_imports = "silent"

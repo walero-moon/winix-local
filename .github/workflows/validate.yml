@@ -1,0 +1,32 @@
+name: Validate
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.9', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -e '.[dev]'
+      - run: make validate PYTHON=python
+      - uses: actions/upload-artifact@v4
+        with:
+          name: winix-local-python-${{ matrix.python }}
+          path: dist/winix_local.zip
+  home-assistant:
+    runs-on: ubuntu-latest
+    container: ghcr.io/home-assistant/home-assistant:2026.10.2
+    steps:
+      - uses: actions/checkout@v4
+      - run: python -m pip install -e .
+      - run: python -m winix_local.build --project-root .
+      - run: python -B -m unittest discover -s src/tests/integration -p test_ha_runtime.py

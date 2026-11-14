@@ -1,0 +1,20 @@
+{
+  "title": "Winix Local",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect your local Winix",
+        "description": "First run the provisioning tool to create an installation bundle and copy it to /config/winix_local/<MAC>/. Configure the MQTT integration with the same broker. Enter the purifier MAC below.",
+        "data": {
+          "mac": "Purifier MAC address"
+        }
+      }
+    },
+    "error": {
+      "invalid_bundle": "Bundle missing or invalid. Check /config/winix_local/<MAC>/ and the installation guide."
+    },
+    "abort": {
+      "already_configured": "This purifier is already configured."
+    }
+  }
+}
