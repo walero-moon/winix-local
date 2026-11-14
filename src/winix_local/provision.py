@@ -89,6 +89,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Identify device without changing its settings",
     )
 
+    setup_parser = commands.add_parser(
+        "setup", help="Guided purifier setup; HA and MQTT installation stay manual"
+    )
+    setup_parser.add_argument(
+        "--config", type=Path, help="Existing public provision.json"
+    )
+    setup_parser.add_argument(
+        "--directory", type=Path, help="Private directory for new setup files"
+    )
+    setup_parser.add_argument(
+        "--mac", help="Optional MAC override if automatic discovery is unavailable"
+    )
+    setup_parser.add_argument("--setup-host", default="192.168.43.1")
+    setup_parser.add_argument("--setup-port", type=int, default=47000)
+    setup_parser.add_argument(
+        "--prepare-only",
+        action="store_true",
+        help="Prepare certificates/files without changing the purifier",
+    )
+
     return parser
 
 
@@ -228,7 +248,6 @@ def configure_wifi(connection: socket.socket, key: bytes, credentials: bytes) ->
 
 def provision_device(args: argparse.Namespace) -> None:
     config = load_provisioning_config(args.config)
-    mac = mac_id(config["mac"])
 
     # Validate credential structure before changing any server settings.
     credentials = b""
@@ -236,14 +255,32 @@ def provision_device(args: argparse.Namespace) -> None:
         password = getpass.getpass("Target Wi-Fi password: ")
         credentials = wifi_body(args.ssid, password, args.bssid)
 
+    apply_configuration(
+        config,
+        credentials,
+        args.setup_host,
+        args.setup_port,
+        check_only=args.check_only,
+    )
+
+
+def apply_configuration(
+    config: ProvisioningConfig,
+    credentials: bytes,
+    setup_host: str,
+    setup_port: int,
+    *,
+    check_only: bool = False,
+) -> None:
+    """Verify identity, then send server settings before the Wi-Fi handoff."""
     nonce = secrets.token_bytes(4)
-    key = secret_key(nonce, mac)
+    key = secret_key(nonce, mac_id(config["mac"]))
 
     with socket.create_connection(
-        (args.setup_host, args.setup_port), timeout=SETUP_TIMEOUT_SECONDS
+        (setup_host, setup_port), timeout=SETUP_TIMEOUT_SECONDS
     ) as connection:
         verify_device(connection, key, nonce, expected_model=config["model"])
-        if args.check_only:
+        if check_only:
             return
 
         configure_servers(connection, key, config)
@@ -260,6 +297,10 @@ def main(argv=None) -> None:
 
     if args.command == "init":
         initialize_installation(args)
+    elif args.command == "setup":
+        from .setup import run_setup
+
+        run_setup(args)
     else:
         provision_device(args)
 

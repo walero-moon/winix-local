@@ -47,6 +47,11 @@ ADAPTER_FILES = (
     "translations/en.json",
 )
 CORE_TOOLING_FILES = {
+    "discovery.py",
+    "networks.py",
+    "setup.py",
+    "setup_checks.py",
+    "setup_files.py",
     "build.py",
     "prepare_broker.py",
     "provision.py",
