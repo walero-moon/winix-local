@@ -231,15 +231,75 @@ class WindowsPrivateStorageTests(unittest.TestCase):
                 )
             )
             try:
-                return ctypes.wstring_at(text.value)
+                sddl = ctypes.wstring_at(text.value)
+                return sddl, self.read_accounts(descriptor, security, api)
             finally:
                 api.local_free(text)
         finally:
             api.local_free(descriptor)
 
-    def assert_private_grants(self, sddl, user_sid):
-        accounts = {entry.split(";")[-1] for entry in re.findall(r"\(([^()]*)\)", sddl)}
-        accounts = {"S-1-5-18" if account == "SY" else account for account in accounts}
+    def read_accounts(self, descriptor, security, api):
+        """Read canonical SIDs from the ACEs; SDDL may abbreviate an admin as LA."""
+        pointer = ctypes.c_void_p
+
+        class AclSizeInformation(ctypes.Structure):
+            _fields_ = [
+                ("ace_count", storage.DWORD),
+                ("bytes_in_use", storage.DWORD),
+                ("bytes_free", storage.DWORD),
+            ]
+
+        acl_information = storage._bind(
+            security,
+            "GetAclInformation",
+            [pointer, pointer, storage.DWORD, ctypes.c_int],
+            storage.BOOL,
+        )
+        get_ace = storage._bind(
+            security,
+            "GetAce",
+            [pointer, storage.DWORD, ctypes.POINTER(pointer)],
+            storage.BOOL,
+        )
+        present, defaulted = storage.BOOL(), storage.BOOL()
+        dacl = pointer()
+        self.assertTrue(
+            api.descriptor_dacl(
+                descriptor,
+                ctypes.byref(present),
+                ctypes.byref(dacl),
+                ctypes.byref(defaulted),
+            )
+        )
+        self.assertTrue(present.value)
+        self.assertTrue(dacl.value)
+
+        information = AclSizeInformation()
+        self.assertTrue(
+            acl_information(
+                dacl, ctypes.byref(information), ctypes.sizeof(information), 2
+            )
+        )
+        self.assertEqual(information.ace_count, 2)
+        accounts = set()
+        for index in range(information.ace_count):
+            ace = pointer()
+            self.assertTrue(get_ace(dacl, index, ctypes.byref(ace)))
+            # ACCESS_ALLOWED_ACE has a four-byte header and four-byte mask,
+            # followed by its SID. Reject other ACE layouts before reading it.
+            self.assertEqual(ctypes.c_ubyte.from_address(ace.value).value, 0)
+            sid_text = pointer()
+            self.assertTrue(
+                api.sid_to_string(pointer(ace.value + 8), ctypes.byref(sid_text))
+            )
+            try:
+                accounts.add(ctypes.wstring_at(sid_text.value))
+            finally:
+                api.local_free(sid_text)
+        return accounts
+
+    def assert_private_grants(self, descriptor, user_sid):
+        sddl, accounts = descriptor
         self.assertEqual(accounts, {user_sid, "S-1-5-18"})
         self.assertTrue(
             all(entry.startswith("A;") for entry in re.findall(r"\(([^()]*)\)", sddl))
@@ -253,15 +313,15 @@ class WindowsPrivateStorageTests(unittest.TestCase):
             directory.mkdir()
             storage.restrict_private(directory, directory=True)
             descriptor = self.read_dacl(directory)
-            self.assertTrue(descriptor.startswith("D:P"), descriptor)
-            self.assertIn("OICI", descriptor)
+            self.assertTrue(descriptor[0].startswith("D:P"), descriptor)
+            self.assertIn("OICI", descriptor[0])
             self.assert_private_grants(descriptor, sid)
 
             file = directory / "private key.txt"
             file.write_text("fixture")
             self.assert_private_grants(self.read_dacl(file), sid)
             storage.restrict_private(file, directory=False)
-            self.assertTrue(self.read_dacl(file).startswith("D:P"))
+            self.assertTrue(self.read_dacl(file)[0].startswith("D:P"))
             file.write_text("still writable")
             self.assertEqual(file.read_text(), "still writable")
             file.unlink()

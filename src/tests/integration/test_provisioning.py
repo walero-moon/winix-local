@@ -108,8 +108,15 @@ class PurifierFixture:
 
 
 def run_cli(arguments, password=""):
+    # Exercise the real CLI and TCP exchange, with a deterministic secret-input
+    # adapter. Windows getpass reads the console even when stdin is a pipe.
+    script = (
+        "import getpass, runpy, sys; "
+        "getpass.getpass = lambda prompt: sys.stdin.readline().rstrip('\\r\\n'); "
+        "runpy.run_module('winix_local.provision', run_name='__main__')"
+    )
     return subprocess.run(
-        [sys.executable, "-B", "-m", "winix_local.provision", *arguments],
+        [sys.executable, "-B", "-c", script, *arguments],
         input=password + "\n",
         text=True,
         capture_output=True,
