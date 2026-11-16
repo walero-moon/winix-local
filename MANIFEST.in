@@ -1,7 +1,7 @@
-include README.md LICENSE AGENTS.md Makefile hacs.json manifest.json
+include README.md LICENSE AGENTS.md Makefile hacs.json manifest.json CHANGELOG.md CONTRIBUTING.md SECURITY.md
 recursive-include src *.py *.json
 recursive-include docs *.md
 recursive-include examples *.yaml *.md .env.example
-recursive-include .github/workflows *.yml
+recursive-include .github *.yml *.yaml *.md
 prune src/winix_local.egg-info
 global-exclude __pycache__ *.py[cod] *.key *.pem

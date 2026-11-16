@@ -56,6 +56,7 @@ CORE_TOOLING_FILES = {
     "setup_checks.py",
     "setup_files.py",
     "build.py",
+    "release.py",
     "prepare_broker.py",
     "provision.py",
     "cli.py",

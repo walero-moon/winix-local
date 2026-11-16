@@ -1,0 +1,39 @@
+name: Bug report
+description: Report a setup or control problem.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Winix Local version
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Purifier model
+      description: Exact model identifier if known. Please leave out the MAC address.
+      placeholder: 5510_US
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: HA version/install type, setup computer OS, and broker/version.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Include what you expected and the steps needed to reproduce it.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Remove passwords, tokens, private keys, MAC addresses and personal network details before pasting.
+      render: text

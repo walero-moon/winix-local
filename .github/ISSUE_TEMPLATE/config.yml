@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Setup instructions
+    url: https://github.com/walero-moon/winix-local/blob/main/README.md#setup
+    about: Installation, certificates, broker settings and troubleshooting.
+  - name: Security reports
+    url: https://github.com/walero-moon/winix-local/blob/main/SECURITY.md
+    about: Read this before sharing a suspected security problem.

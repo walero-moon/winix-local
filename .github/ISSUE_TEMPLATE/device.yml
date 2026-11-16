@@ -1,0 +1,23 @@
+name: Device compatibility
+description: Share results from another Winix model.
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Exact model identifier
+      placeholder: 5520_US
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Winix Local version
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: What did you test?
+      description: Describe setup, telemetry, commands and reconnect behavior you actually observed. Distinguish untested controls from failures. Don't include private credentials or the full MAC.
+    validations:
+      required: true

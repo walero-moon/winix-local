@@ -12,6 +12,11 @@ license = "MIT"
 license-files = ["LICENSE"]
 dependencies = ["cryptography>=43,<47", "aiohttp>=3.9,<4"]
 
+[project.urls]
+Repository = "https://github.com/walero-moon/winix-local"
+Issues = "https://github.com/walero-moon/winix-local/issues"
+Changelog = "https://github.com/walero-moon/winix-local/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 dev = ["black==25.1.0", "mypy>=1.15,<2", "build>=1.2,<2"]
 mqtt-test = ["paho-mqtt>=2,<3"]

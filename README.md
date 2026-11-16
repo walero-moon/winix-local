@@ -1,5 +1,8 @@
 # Winix Local
 
+[![Build](https://github.com/walero-moon/winix-local/actions/workflows/validate.yml/badge.svg?branch=main)](https://github.com/walero-moon/winix-local/actions/workflows/validate.yml)
+[Releases](https://github.com/walero-moon/winix-local/releases) · [Issues](https://github.com/walero-moon/winix-local/issues) · [MIT license](LICENSE)
+
 Local registration, certificate bootstrap, MQTT communication and Home Assistant
 controls for stock Winix firmware.
 
@@ -18,16 +21,21 @@ You'll need:
   The broker needs TLS and client-certificate authentication. Mosquitto works,
   but you can use another broker with those features.
 - A computer with Wi-Fi and Python 3.9+, running Windows, macOS, or Linux.
-  You'll only need it during setup.
-- Wi-Fi for the purifier. Use a 2.4 GHz network for the 5510.
+  You'll only need it during setup. I don't plan on making a phone app.
+- Obvious, but Wi-Fi for the purifier. Use a 2.4 GHz network for the 5510.
 
 HA and the broker need to be reachable from that Wi-Fi network. They can run on
 separate machines. You don't need a Winix account or any hardware modifications.
 
 ### 1. Install Winix Local
 
-For now, you'll need to install from source. Download this repository, open a
-terminal in its folder, and run these commands while you have internet access:
+The repository is private for now. Use a GitHub account with access to download
+`winix_local.zip` from the [latest release](https://github.com/walero-moon/winix-local/releases/latest).
+You can also build it from source with the last command below. HACS installation
+will be available once the repository is public; use manual installation for now.
+
+Download the matching release's source archive onto your setup computer and open
+a terminal in the extracted folder. Install the setup tool while you have internet access:
 
 **macOS / Linux**
 
@@ -119,8 +127,8 @@ Choose how to create the certificates:
 **Retain the CA signing key on HA** is off by default. HA uses the key to create
 the certificates and only saves it if you enable this option. You can use a saved
 key to issue certificates later; this version doesn't renew them automatically.
-A retained key lives in HA's configuration folder and may be included in backups.
-Saved keys aren't encrypted at rest, so keep those backups private.
+A retained key lives in HA's configuration folder and may be included in backups. Saved keys aren't encrypted at rest, so keep those backups
+private.
 
 Review the settings and submit. If you already have an installation bundle in
 `/config/winix_local/<MAC>/`, use **Use an existing installation bundle** instead.
@@ -223,7 +231,8 @@ up the purifier again.
 You can block the purifier's internet access. It talks to HA and your broker
 locally, but still needs DNS and NTP to set its clock for TLS. If you block all
 internet access, provide those services locally or redirect them on your network,
-while allowing the routes to HA and the broker. The setup tool doesn't configure firewall,
+while allowing
+the routes to HA and the broker. The setup tool doesn't configure firewall,
 DHCP, DNS, or NTP settings.
 
 ### More than one purifier
@@ -283,8 +292,9 @@ installed; the ordinary Python suite skips them otherwise.
 
 The suite has passed on macOS and isolated Linux/HA, including the setup forms,
 certificate checks and authenticated downloads. The new UI still needs a full
-setup and restart/reconnection test with a real purifier. Native Windows testing
-is also pending. The 5520 and other catalog models haven't been physically verified.
+setup and restart/reconnection test with a real purifier. The platform test matrix
+runs on GitHub Actions; setting up a real purifier from Windows still needs a
+manual check. The 5520 and other catalog models haven't been physically verified.
 
 ### Repository layout
 
@@ -305,9 +315,19 @@ not the generated copies. Installing the raw HA source folder won't work without
 that build step.
 
 `manifest.json` is the shared HA metadata. `hacs.json` describes the ZIP release
-layout. HACS installation needs a published repository and a release asset named
-`winix_local.zip`; those haven't been published as part of this work.
+layout. Each tagged release includes `winix_local.zip`. While the repository is
+private, download it with an account that has access and install it manually.
+Making the repository public and listing it in HACS are separate steps.
 
 The installed commands are `winix-local`, `winix-local-broker` and
 `winix-local-build`. The broker exporter writes Mosquitto-specific files from an
 existing private bundle; it is separate from the HA UI's generic certificate ZIP.
+
+### Contributing and releases
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release instructions,
+[CHANGELOG.md](CHANGELOG.md) for release notes, and [SECURITY.md](SECURITY.md) for
+security reports. The project uses the [MIT license](LICENSE).
+
+CI checks Python 3.9 and 3.13 on Windows, macOS and Linux, plus the built integration
+inside HA. Version tags run those checks before publishing the release assets.
