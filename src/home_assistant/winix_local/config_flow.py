@@ -1,11 +1,15 @@
 """Guided local enrollment; private key material never enters HA config entries."""
 
+from ipaddress import ip_address
 from pathlib import Path
+import re
+from urllib.parse import urlsplit
 
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
 from ._core.certificate_setup import (
     create_installation,
@@ -37,6 +41,37 @@ class WinixLocalFlow(config_entries.ConfigFlow, domain="winix_local"):
             step_id="user", menu_options=["connection", "existing"]
         )
 
+    def _suggest_registration_host(self):
+        """Suggest HA's internal host without assuming the purifier can reach it."""
+        try:
+            internal_url = get_url(
+                self.hass, allow_external=False, allow_cloud=False, allow_ip=True
+            )
+            host = urlsplit(internal_url).hostname
+            if (
+                host is None
+                or host.lower() == "localhost"
+                or len(host) > 253
+                or not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?", host)
+            ):
+                return None
+        except (NoURLAvailableError, ValueError):
+            return None
+
+        try:
+            address = ip_address(host)
+        except ValueError:
+            return host
+
+        if (
+            address.version != 4
+            or address.is_loopback
+            or address.is_unspecified
+            or address.is_multicast
+        ):
+            return None
+        return host
+
     async def async_step_connection(self, user_input=None):
         errors = {}
         if user_input:
@@ -53,24 +88,33 @@ class WinixLocalFlow(config_entries.ConfigFlow, domain="winix_local"):
                     menu_options=["generate", "issuer", "certificates"],
                 )
 
+        suggested_values = dict(user_input or {})
+        if "server_host" not in suggested_values:
+            host = self._suggest_registration_host()
+            if host is not None:
+                suggested_values["server_host"] = host
+
         return self.async_show_form(
             step_id="connection",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("mac"): str,
-                    vol.Required("model"): str,
-                    vol.Required("server_host"): str,
-                    vol.Required("http_port", default=18080): vol.All(
-                        vol.Coerce(int), vol.Range(min=1024, max=65535)
-                    ),
-                    vol.Required("https_port", default=18443): vol.All(
-                        vol.Coerce(int), vol.Range(min=1024, max=65535)
-                    ),
-                    vol.Required("mqtt_host"): str,
-                    vol.Required("mqtt_port", default=8883): vol.All(
-                        vol.Coerce(int), vol.Range(min=1024, max=65535)
-                    ),
-                }
+            data_schema=self.add_suggested_values_to_schema(
+                vol.Schema(
+                    {
+                        vol.Required("mac"): str,
+                        vol.Required("model"): str,
+                        vol.Required("server_host"): str,
+                        vol.Required("http_port", default=18080): vol.All(
+                            vol.Coerce(int), vol.Range(min=1024, max=65535)
+                        ),
+                        vol.Required("https_port", default=18443): vol.All(
+                            vol.Coerce(int), vol.Range(min=1024, max=65535)
+                        ),
+                        vol.Required("mqtt_host"): str,
+                        vol.Required("mqtt_port", default=8883): vol.All(
+                            vol.Coerce(int), vol.Range(min=1024, max=65535)
+                        ),
+                    }
+                ),
+                suggested_values,
             ),
             errors=errors,
         )

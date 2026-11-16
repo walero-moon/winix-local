@@ -61,7 +61,11 @@ def setUpModule():
     importlib.invalidate_caches()
 
     integration = importlib.import_module("custom_components.winix_local")
-    if not Path(integration.__file__).resolve().is_relative_to(integration_root):
+    if (
+        not Path(integration.__file__)
+        .resolve()
+        .is_relative_to(integration_root.resolve())
+    ):
         raise AssertionError("HA test imported source instead of the HACS artifact")
 
 
@@ -291,6 +295,111 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 {"base": "invalid_bundle"},
             )
             flow.async_create_entry.assert_not_called()
+            await hass.async_stop()
+
+    async def test_registration_host_suggestion_uses_only_a_suitable_internal_host(
+        self,
+    ):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+
+        for internal_url, expected in (
+            ("http://192.168.1.50:8123", "192.168.1.50"),
+            ("https://ha.home.arpa:8443/path", "ha.home.arpa"),
+            ("http://127.0.0.1:8123", None),
+            ("http://localhost:8123", None),
+            ("http://0.0.0.0:8123", None),
+            ("http://224.0.0.1:8123", None),
+            ("http://[fd00::1]:8123", None),
+            (None, None),
+        ):
+            with (
+                self.subTest(url=internal_url),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                hass = HomeAssistant(directory)
+                hass.config.internal_url = internal_url
+                hass.config.external_url = "https://external.example.com"
+                flow = WinixLocalFlow()
+                flow.hass = hass
+                result = await flow.async_step_connection()
+                field = next(
+                    key
+                    for key in result["data_schema"].schema
+                    if key.schema == "server_host"
+                )
+                self.assertEqual(
+                    (field.description or {}).get("suggested_value"), expected
+                )
+                await hass.async_stop()
+
+    async def test_registration_host_falls_back_to_detected_ha_address(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            hass.config.api = Mock(local_ip="192.168.1.70", port=8123, use_ssl=False)
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            result = await flow.async_step_connection()
+            field = next(
+                key
+                for key in result["data_schema"].schema
+                if key.schema == "server_host"
+            )
+            self.assertEqual(field.description["suggested_value"], "192.168.1.70")
+            await hass.async_stop()
+
+    async def test_registration_host_override_survives_errors_and_is_used_in_bundle(
+        self,
+    ):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="purifier-route.home.arpa",
+            mqtt_host="mqtt.home.arpa",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            hass.config.internal_url = "http://192.168.1.50:8123"
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            flow.async_create_entry = Mock(return_value={"type": "create_entry"})
+
+            invalid = dict(settings, mac="invalid")
+            result = await flow.async_step_connection(invalid)
+            self.assertEqual(result["errors"], {"base": "invalid_settings"})
+            field = next(
+                key
+                for key in result["data_schema"].schema
+                if key.schema == "server_host"
+            )
+            self.assertEqual(
+                field.description["suggested_value"], settings["server_host"]
+            )
+
+            await flow.async_step_connection(settings)
+            await flow.async_step_generate({"retain_ca_key": False})
+            await flow.async_step_confirm({})
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            provision = json.loads((bundle / "provision.json").read_text())
+            self.assertEqual(provision["server_host"], settings["server_host"])
+            from cryptography import x509
+            from cryptography.x509.oid import ExtensionOID
+
+            certificate = x509.load_pem_x509_certificate(
+                (bundle / "auth.pem").read_bytes()
+            )
+            names = certificate.extensions.get_extension_for_oid(
+                ExtensionOID.SUBJECT_ALTERNATIVE_NAME
+            ).value.get_values_for_type(x509.DNSName)
+            self.assertEqual(names, [settings["server_host"]])
             await hass.async_stop()
 
     async def test_new_setup_generates_and_imports_without_storing_keys_in_entry(self):

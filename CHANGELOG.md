@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2] - 2026-11-16
+
+- HA suggests its internal hostname or IPv4 address for the registration host.
+  The field stays editable and remains blank if no suitable address is available.
+- Setup keeps entered values after validation errors. An overridden address is
+  used in both the provisioning configuration and registration-server certificate.
+- README setup instructions clarify certificate choices and broker configuration.
+  Platform compatibility, manual MAC lookup and BSSID help are under Troubleshooting.
+- HA runtime tests cover address suggestions, fallback behavior and overrides.
+  The artifact import check also handles macOS temporary-directory aliases.
+
+Device support and the pending real-device setup/reconnection checks are unchanged.
+
 ## [0.1.1] - 2026-11-16
 
 - Standalone setup executables for Windows x64, macOS Intel/Apple Silicon, and

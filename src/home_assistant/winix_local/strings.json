@@ -11,7 +11,7 @@
       },
       "connection": {
         "title": "Local connection settings",
-        "description": "Configure the Home Assistant MQTT integration separately to use the same broker. Enter the purifier-accessible TLS endpoint below. The registration host must reach this HA instance on the HTTP/HTTPS ports below (publish these ports when using HA Container). The exact model and MAC are available from the provisioning tool\u2019s read-only handshake. Only the 5510 has been hardware verified.",
+        "description": "HA suggests an internal address for its local registration service. Check that the purifier can reach it on the HTTP/HTTPS ports below, and change it if needed. With HA Container, publish those ports and use the host machine's reachable LAN address. Configure HA's MQTT integration separately to use the same broker. Find the MAC and exact model with the setup tool's identify command. Only the 5510 has been hardware verified.",
         "data": {
           "mac": "Purifier MAC address",
           "model": "Exact device model (for example 5520_US)",
