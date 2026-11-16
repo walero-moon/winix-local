@@ -6,40 +6,65 @@
 Local registration, certificate bootstrap, MQTT communication and Home Assistant
 controls for stock Winix firmware.
 
-**Status: experimental 0.1.0.** Local registration, certificate trust, MQTT and
-low/medium fan control were verified on a stock 5510_US on 2026-11-13
+**Status: experimental 0.1.0.** Verified on a stock 5510_US on 2026-11-13
 (it's the only hardware I have). The 59-model catalog is just metadata, not a
 list of supported devices. Feel free to try it out though.
 
 ## Setup
 
-You'll need:
+There are some pre-conditions you'll need:
 
-- Home Assistant 2026.10.0 or newer. HA Container works too.
-- An MQTT broker, already connected to Home Assistant through its
+- Home Assistant 2026.10.0 or newer (Container or OS).
+- An MQTT broker connected to Home Assistant through its
   [MQTT integration](https://www.home-assistant.io/integrations/mqtt/).
-  The broker needs TLS and client-certificate authentication. Mosquitto works,
-  but you can use another broker with those features.
+  The broker needs TLS and client-certificate authentication. Tested with Mosquito,
+  but in theory anything that supports these features should work.
 - A computer with Wi-Fi and Python 3.9+, running Windows, macOS, or Linux.
-  You'll only need it during setup. I don't plan on making a phone app.
-- Obvious, but Wi-Fi for the purifier. Use a 2.4 GHz network for the 5510.
+  You only need this during setup, and I don't plan on making a phone app.
+- Obvious, but Wi-Fi for the device. Use a 2.4 GHz network for the 5510.
 
 HA and the broker need to be reachable from that Wi-Fi network. They can run on
 separate machines. You don't need a Winix account or any hardware modifications.
 
 ### 1. Install Winix Local
 
-Download these two files from the [latest release](https://github.com/walero-moon/winix-local/releases/latest):
+Install the Home Assistant integration through [HACS](https://www.hacs.xyz/).
+If you don't have HACS yet, follow its
+[installation instructions](https://www.hacs.xyz/docs/use/download/download/).
 
-| Download | What it's for |
-| --- | --- |
-| `winix_local.zip` | The Home Assistant integration, ready to extract |
-| `winix_local-0.1.0-py3-none-any.whl` | The setup tool, ready to install with Python |
+1. Open HACS in Home Assistant, then open the three-dot menu and choose
+   **Custom repositories**.
+2. Add `https://github.com/walero-moon/winix-local` and select **Integration**
+   as the type.
+3. Find **Winix Local** in HACS and download it.
+4. Restart Home Assistant, then continue with the setup tool below.
 
-The repository is private for now, so you'll need a GitHub account with access.
-You don't need to download the source archive or clone the repository.
-HACS installation will be available once the repository is public; use manual
-installation for now.
+Winix Local is a custom repository, so you need to add its URL before it appears
+in your HACS search. HACS downloads the integration and offers updates when new
+releases are available. You don't need to build anything.
+
+<details>
+<summary>Manual installation without HACS</summary>
+
+Download `winix_local.zip` from the
+[latest release](https://github.com/walero-moon/winix-local/releases/latest).
+Extract its contents into Home Assistant's `custom_components/winix_local/`
+directory. In HA Container, that's `/config/custom_components/winix_local/`
+inside the container. Copy the files into the host folder mapped to that location.
+
+Check that `manifest.json`, `config_flow.py`, and `_core/` are directly inside
+`winix_local/`. Back up an existing installation before replacing its files,
+then restart Home Assistant. For future updates, download and extract the new ZIP.
+
+</details>
+
+#### Install the setup tool on your computer
+
+HACS installs the HA integration. To connect the purifier to your Wi-Fi and local
+servers, you'll also need the setup tool on your computer. Download
+`winix_local-0.1.0-py3-none-any.whl` from the
+[latest release](https://github.com/walero-moon/winix-local/releases/latest).
+You don't need the source archive or a repository checkout.
 
 Save the wheel in a folder on your setup computer and open a terminal there.
 Run these commands while you have internet access. If the downloaded wheel has a
@@ -64,15 +89,6 @@ py -3 -m venv .venv
 This installs the tool and its prebuilt dependencies. You'll still need Python,
 but no compiler or build tools. If a dependency has no compatible wheel, pip stops
 with an error instead of trying to compile it.
-
-Extract the contents of that ZIP into Home Assistant's
-`custom_components/winix_local/` directory. In HA Container, that's
-`/config/custom_components/winix_local/` inside the container. Copy the files into the
-host folder mapped to that location.
-
-Check that `manifest.json`, `config_flow.py`, and `_core/` are directly inside
-`winix_local/`. Back up an existing installation before replacing its files,
-then restart Home Assistant.
 
 ### 2. Find the purifier's MAC and model
 
