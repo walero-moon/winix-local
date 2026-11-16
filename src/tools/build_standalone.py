@@ -34,7 +34,7 @@ def write_licenses(destination: Path) -> None:
     ):
         for file in distribution.files or ():
             if file.name.lower().startswith(("license", "copying", "notice")):
-                path = Path(distribution.locate_file(file))
+                path = Path(str(distribution.locate_file(file)))
                 if path.is_file():
                     notices.append(
                         f"\n--- {distribution.metadata['Name']}: {file} ---\n"
