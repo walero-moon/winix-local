@@ -29,33 +29,41 @@ separate machines. You don't need a Winix account or any hardware modifications.
 
 ### 1. Install Winix Local
 
-The repository is private for now. Use a GitHub account with access to download
-`winix_local.zip` from the [latest release](https://github.com/walero-moon/winix-local/releases/latest).
-You can also build it from source with the last command below. HACS installation
-will be available once the repository is public; use manual installation for now.
+Download these two files from the [latest release](https://github.com/walero-moon/winix-local/releases/latest):
 
-Download the matching release's source archive onto your setup computer and open
-a terminal in the extracted folder. Install the setup tool while you have internet access:
+| Download | What it's for |
+| --- | --- |
+| `winix_local.zip` | The Home Assistant integration, ready to extract |
+| `winix_local-0.1.0-py3-none-any.whl` | The setup tool, ready to install with Python |
+
+The repository is private for now, so you'll need a GitHub account with access.
+You don't need to download the source archive or clone the repository.
+HACS installation will be available once the repository is public; use manual
+installation for now.
+
+Save the wheel in a folder on your setup computer and open a terminal there.
+Run these commands while you have internet access. If the downloaded wheel has a
+different version number, use its filename in the install command.
 
 **macOS / Linux**
 
 ```sh
 python3 -m venv .venv
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install .
-.venv/bin/python -m winix_local.build --project-root .
+.venv/bin/python -m pip install --only-binary=:all: --upgrade pip
+.venv/bin/python -m pip install --only-binary=:all: ./winix_local-0.1.0-py3-none-any.whl
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
 py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install .
-.\.venv\Scripts\python.exe -m winix_local.build --project-root .
+.\.venv\Scripts\python.exe -m pip install --only-binary=:all: --upgrade pip
+.\.venv\Scripts\python.exe -m pip install --only-binary=:all: .\winix_local-0.1.0-py3-none-any.whl
 ```
 
-The commands install the setup tool and build `dist/winix_local.zip`.
+This installs the tool and its prebuilt dependencies. You'll still need Python,
+but no compiler or build tools. If a dependency has no compatible wheel, pip stops
+with an error instead of trying to compile it.
 
 Extract the contents of that ZIP into Home Assistant's
 `custom_components/winix_local/` directory. In HA Container, that's
@@ -74,7 +82,7 @@ Hold the purifier's Wi-Fi button for about three seconds until it blinks, then
 connect your computer to its `WINIX SMART ...` network. On an already configured
 purifier, this can reset its Wi-Fi setup.
 
-From the same project folder, run:
+From the folder where you installed the setup tool, run:
 
 **macOS / Linux**
 
@@ -167,7 +175,8 @@ isn't a complete Mosquitto configuration you can mount and run as-is.
 ### 5. Connect the purifier
 
 Save `provision.json` on your computer, for example in Downloads. Start with the
-computer on your **usual network**, where it can reach HA and the broker.
+computer on your **usual network**, where it can reach HA and the broker. Run
+the command from the folder where you installed the setup tool.
 
 **macOS / Linux**
 
@@ -214,6 +223,7 @@ HA and the broker stay running; the setup computer can be disconnected.
 | TLS or CA fingerprint error | Correct `provision.json`, certificate hostname, and device clock; don't turn off certificate verification |
 | Can't identify the purifier | Correct hotspot and pairing mode; Linux needs `ip` or `arp`, Windows needs `arp.exe`; try the full MAC fallback |
 | Purifier joins Wi-Fi but stays unavailable | Its routes to HA and MQTT, DNS/NTP, broker client-certificate settings, CN mapping, and topic permissions |
+| Pip reports no matching binary distribution | Update pip and use a Python/platform combination with dependency wheels; CI checks Python 3.9 and 3.13 on Windows, macOS and Linux |
 | Download link stopped working | Reopen Configure while signed in as an HA administrator |
 
 If the entry is retrying, you can still open Configure to download its files.
@@ -271,6 +281,7 @@ From the repository root:
 **macOS / Linux**
 
 ```sh
+python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[dev]'
 make validate PYTHON=.venv/bin/python
 ```
@@ -278,6 +289,7 @@ make validate PYTHON=.venv/bin/python
 **Windows (PowerShell)**
 
 ```powershell
+py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e '.[dev]'
 .\.venv\Scripts\python.exe -m black --check src
 .\.venv\Scripts\python.exe -m mypy
@@ -285,7 +297,6 @@ make validate PYTHON=.venv/bin/python
 .\.venv\Scripts\python.exe -B -m unittest discover -s src/tests -t src -p 'test_*.py'
 ```
 
-Create the virtual environment from step 1 first if you haven't already.
 `make validate` checks formatting, types, the built ZIP, tests, and the Compose
 example when Docker Compose is available. The HA runtime tests run only when HA is
 installed; the ordinary Python suite skips them otherwise.
@@ -296,6 +307,26 @@ setup and restart/reconnection test with a real purifier. The platform test matr
 runs on GitHub Actions; setting up a real purifier from Windows still needs a
 manual check. The 5520 and other catalog models haven't been physically verified.
 
+### Build packages
+
+The release workflow builds the downloads for users. To build them locally:
+
+**macOS / Linux**
+
+```sh
+.venv/bin/python -m build
+.venv/bin/python -m winix_local.build --project-root .
+```
+
+**Windows (PowerShell)**
+
+```powershell
+.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe -m winix_local.build --project-root .
+```
+
+The wheel and source archive are written to `dist/`, alongside the HA ZIP.
+
 ### Repository layout
 
 ```text
@@ -305,6 +336,7 @@ src/
   tests/
     unit/
     integration/
+  tools/                        Release installation checks
 examples/mosquitto/              Optional Compose example
 .github/workflows/              CI checks
 ```
@@ -330,4 +362,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release instructions,
 security reports. The project uses the [MIT license](LICENSE).
 
 CI checks Python 3.9 and 3.13 on Windows, macOS and Linux, plus the built integration
-inside HA. Version tags run those checks before publishing the release assets.
+inside HA. The [Install release workflow](https://github.com/walero-moon/winix-local/actions/workflows/install.yml)
+also installs the built wheel in fresh environments on those platforms, using
+only prebuilt dependencies. Future version tags must pass those installation
+checks before the release assets are published.

@@ -31,8 +31,11 @@ jobs:
           name: release-files
           path: dist/
           if-no-files-found: error
-  publish:
+  install:
     needs: build
+    uses: ./.github/workflows/install.yml
+  publish:
+    needs: [build, install]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
