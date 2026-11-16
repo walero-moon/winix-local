@@ -1,14 +1,28 @@
 # Winix Local
 
 Local registration, certificate bootstrap, MQTT communication and Home Assistant
-controls for stock Winix firmware. A laptop provisions the purifier once; the
-HA integration serves registration and uses your existing MQTT broker.
+controls for stock Winix firmware.
 
 **Status: experimental 0.1.0.** Local registration, certificate trust, MQTT and
-low/medium fan control were verified on a stock 5510_US on 2026-11-13. Power,
-auto/manual mode and PlasmaWave controls are implemented but have not all been
-physically exercised. Provisioning and transport still accept only 5510_US.
-The 59-model catalog is metadata, not a supported-device list.
+low/medium fan control were verified on a stock 5510_US on 2026-11-13
+(it's the only hardware I have). The 59-model catalog is just metadata, not a
+list of supported devices. Feel free to try it out though.
+
+## Setup
+
+Start with the [Home Assistant setup guide](docs/ha-setup.md). It covers installing
+the built integration, generating or importing certificates in HA, configuring
+your existing MQTT broker, and running the guided Wi-Fi provisioning tool.
+
+You need Home Assistant 2026.10.0 or newer, a compatible MQTT broker reachable
+from HA and the purifier, and a Windows, macOS, or Linux computer with Wi-Fi for
+one-time provisioning. The broker and HA stay running afterward; the setup
+computer does not.
+
+This is a local development checkout. A published HACS release is not yet part
+of these instructions; build the ZIP and install it manually as described in the
+guide. The new setup UI has automated HA tests, but its complete real-device
+walkthrough and native Windows verification are still pending.
 
 ## Repository layout
 
@@ -19,7 +33,7 @@ src/
   tests/
     unit/                       Catalog, wire, codec and packaging checks
     integration/                TCP provisioning, HTTPS registration and HA tests
-docs/                           Installation, architecture and development
+docs/                           HA installation and setup guide
 examples/mosquitto/              Portable Compose configuration
 .github/workflows/              Validation and build-artifact configuration
 ```
@@ -83,35 +97,6 @@ installation bundles and private configuration. HA needs no separate Winix
 package installation or PyPI release. No certificate or device setting changes
 occur during a build.
 
-Install the **built ZIP**, following [installation instructions](docs/installation.md).
+Install the **built ZIP**, following [installation and setup instructions](docs/ha-setup.md).
 The raw `src/home_assistant/` tree needs the build-generated `_core/` directory
 and is not an installation artifact on its own.
-
-## Publication status
-
-This is a local repository and build. No GitHub repository, release, PyPI package,
-HACS listing or live installation has been created by this extraction. HACS ZIP
-mode needs a public repository and a release asset named `winix_local.zip` before
-users can install through HACS. The manifest's GitHub URLs identify the intended
-repository location and must be reviewed before publication. Marketplace brand
-assets and marketplace acceptance are separate release preparation.
-
-The GitHub workflow validates and uploads CI artifacts when explicitly run on
-GitHub; it has no release, package-publication or deployment step.
-
-## Documentation
-
-- [Installation and existing-broker setup](docs/installation.md)
-- [Architecture and packaging](docs/architecture.md)
-- [Development and verification](docs/development.md)
-
-This project was extracted from the Homelab prototype at commit `3f45bd2`.
-Host-specific networking, Ansible, deployment state and historical lab captures
-remain in Homelab. No host-specific files or private installation material are
-required to build or test this repository.
-
-Project code is distributed under the included MIT license.
-
----
-
-Inspired by [iprak/winix](https://github.com/iprak/winix).
