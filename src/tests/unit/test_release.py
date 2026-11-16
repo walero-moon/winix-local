@@ -23,11 +23,14 @@ class ReleaseTests(unittest.TestCase):
         for name in ("pyproject.toml", "manifest.json", "hacs.json", "LICENSE"):
             shutil.copyfile(ROOT / name, self.project / name)
         manifest = json.loads((self.project / "manifest.json").read_text())
+        project_version = manifest["version"]
         manifest["version"] = "0.1.0"
         (self.project / "manifest.json").write_text(json.dumps(manifest))
         project = self.project / "pyproject.toml"
         project.write_text(
-            project.read_text().replace('version = "0.1.1"', 'version = "0.1.0"')
+            project.read_text().replace(
+                f'version = "{project_version}"', 'version = "0.1.0"'
+            )
         )
         (self.project / "CHANGELOG.md").write_text(
             "# Changelog\n\n## [0.1.0] - 2026-11-16\n\nFirst experimental release.\n\n"
