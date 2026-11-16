@@ -18,7 +18,7 @@ Issues = "https://github.com/walero-moon/winix-local/issues"
 Changelog = "https://github.com/walero-moon/winix-local/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
-dev = ["black==25.1.0", "mypy>=1.15,<2", "build>=1.2,<2"]
+dev = ["black==26.10.1", "mypy>=1.15,<2", "build>=1.2,<2"]
 mqtt-test = ["paho-mqtt>=2,<3"]
 
 [project.scripts]
