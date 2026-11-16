@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 from winix_local.build import BuildError
-from winix_local.release import prepare_release
+from winix_local.release import NATIVE_ASSETS, prepare_release
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -22,6 +22,13 @@ class ReleaseTests(unittest.TestCase):
             shutil.copytree(ROOT / directory, self.project / directory)
         for name in ("pyproject.toml", "manifest.json", "hacs.json", "LICENSE"):
             shutil.copyfile(ROOT / name, self.project / name)
+        manifest = json.loads((self.project / "manifest.json").read_text())
+        manifest["version"] = "0.1.0"
+        (self.project / "manifest.json").write_text(json.dumps(manifest))
+        project = self.project / "pyproject.toml"
+        project.write_text(
+            project.read_text().replace('version = "0.1.1"', 'version = "0.1.0"')
+        )
         (self.project / "CHANGELOG.md").write_text(
             "# Changelog\n\n## [0.1.0] - 2026-11-16\n\nFirst experimental release.\n\n"
             "## [0.0.1] - 2026-11-01\n\nOlder notes.\n"
@@ -75,3 +82,24 @@ class ReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, "version"):
             prepare_release(self.project, "v0.2.0")
         self.assertFalse((self.output / "winix_local.zip").exists())
+
+    def test_native_release_requires_every_target_and_stamps_pinned_launchers(self):
+        with self.assertRaisesRegex(BuildError, "all native"):
+            prepare_release(self.project, "v0.1.0", with_standalone=True)
+
+        shutil.copytree(ROOT / "src/launchers", self.project / "src/launchers")
+        for asset in NATIVE_ASSETS:
+            for name in (asset, asset + "-licenses.txt"):
+                (self.output / name).write_bytes(b"fixture native file")
+        artifacts = prepare_release(self.project, "v0.1.0", with_standalone=True)
+        self.assertEqual(len(artifacts), 16)
+        for launcher in ("setup.sh", "setup.ps1"):
+            text = (self.output / launcher).read_text()
+            self.assertIn("v0.1.0", text)
+            self.assertNotIn("__RELEASE_TAG__", text)
+        hashes = (self.output / "SHA256SUMS").read_text()
+        for path in artifacts[:-1]:
+            self.assertIn(
+                f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n",
+                hashes,
+            )

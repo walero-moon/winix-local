@@ -9,7 +9,18 @@ import re
 from .build import ARCHIVE_NAME, BuildError, build_archive
 
 
-def prepare_release(project_root: Path, tag: str) -> tuple[Path, ...]:
+NATIVE_ASSETS = (
+    "winix-local-linux-x86_64",
+    "winix-local-linux-arm64",
+    "winix-local-macos-x86_64",
+    "winix-local-macos-arm64",
+    "winix-local-windows-x86_64.exe",
+)
+
+
+def prepare_release(
+    project_root: Path, tag: str, *, with_standalone: bool = False
+) -> tuple[Path, ...]:
     """Require matching versions and release notes before preparing any upload."""
     project_root = Path(project_root)
     manifest = json.loads((project_root / "manifest.json").read_text())
@@ -25,7 +36,7 @@ def prepare_release(project_root: Path, tag: str) -> tuple[Path, ...]:
         raise BuildError("Add release notes for this version to CHANGELOG.md")
 
     output = project_root / "dist"
-    artifacts = (
+    artifacts: tuple[Path, ...] = (
         output / ARCHIVE_NAME,
         output / f"winix_local-{version}-py3-none-any.whl",
         output / f"winix_local-{version}.tar.gz",
@@ -33,6 +44,29 @@ def prepare_release(project_root: Path, tag: str) -> tuple[Path, ...]:
     for path in artifacts[1:]:
         if path.is_symlink() or not path.is_file():
             raise BuildError("Build the wheel and source distribution before release")
+    if with_standalone:
+        native_files = tuple(
+            output / name
+            for asset in NATIVE_ASSETS
+            for name in (asset, asset + "-licenses.txt")
+        )
+        if any(path.is_symlink() or not path.is_file() for path in native_files):
+            raise BuildError(
+                "Build all native executables and their license notices first"
+            )
+        launchers = tuple(output / name for name in ("setup.sh", "setup.ps1"))
+        for destination in launchers:
+            if destination.is_symlink():
+                raise BuildError("Launcher output must not be a symlink")
+            source = project_root / "src/launchers" / destination.name
+            template = source.read_text(encoding="utf-8")
+            if template.count("__RELEASE_TAG__") != 1:
+                raise BuildError("Launcher template needs exactly one release tag")
+            destination.write_text(
+                template.replace("__RELEASE_TAG__", tag), encoding="utf-8"
+            )
+        artifacts += (*native_files, *launchers)
+
     for name in ("release-notes.md", "SHA256SUMS"):
         if (output / name).is_symlink():
             raise BuildError("Release output must not be a symlink")
@@ -55,10 +89,13 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--with-standalone", action="store_true")
     args = parser.parse_args(argv)
 
     try:
-        artifacts = prepare_release(args.project_root, args.tag)
+        artifacts = prepare_release(
+            args.project_root, args.tag, with_standalone=args.with_standalone
+        )
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, f"Release preparation failed: {error}\n")
 

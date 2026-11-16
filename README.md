@@ -6,7 +6,7 @@
 Local registration, certificate bootstrap, MQTT communication and Home Assistant
 controls for stock Winix firmware.
 
-**Status: experimental 0.1.0.** Verified on a stock 5510_US on 2026-11-13
+**Status: experimental 0.1.1.** Verified on a stock 5510_US on 2026-11-13
 (it's the only hardware I have). The 59-model catalog is just metadata, not a
 list of supported devices. Feel free to try it out though.
 
@@ -19,14 +19,14 @@ There are some pre-conditions you'll need:
   [MQTT integration](https://www.home-assistant.io/integrations/mqtt/).
   The broker needs TLS and client-certificate authentication. Tested with Mosquito,
   but in theory anything that supports these features should work.
-- A computer with Wi-Fi and Python 3.9+, running Windows, macOS, or Linux.
+- A computer with Wi-Fi, running Windows, macOS, or Linux.
   You only need this during setup, and I don't plan on making a phone app.
 - Obvious, but Wi-Fi for the device. Use a 2.4 GHz network for the 5510.
 
 HA and the broker need to be reachable from that Wi-Fi network. They can run on
 separate machines. You don't need a Winix account or any hardware modifications.
 
-### 1. Install Winix Local
+### 1. Install Winix Local on Home Assistant
 
 Install the Home Assistant integration through [HACS](https://www.hacs.xyz/).
 If you don't have HACS yet, follow its
@@ -41,7 +41,7 @@ If you don't have HACS yet, follow its
 
 Winix Local is a custom repository, so you need to add its URL before it appears
 in your HACS search. HACS downloads the integration and offers updates when new
-releases are available. You don't need to build anything.
+releases are available.
 
 <details>
 <summary>Manual installation without HACS</summary>
@@ -58,67 +58,60 @@ then restart Home Assistant. For future updates, download and extract the new ZI
 
 </details>
 
-#### Install the setup tool on your computer
+The setup commands below download a standalone tool with Python and its
+dependencies included. You don't need to install Python or any packages.
 
-HACS installs the HA integration. To connect the purifier to your Wi-Fi and local
-servers, you'll also need the setup tool on your computer. Download
-`winix_local-0.1.0-py3-none-any.whl` from the
-[latest release](https://github.com/walero-moon/winix-local/releases/latest).
-You don't need the source archive or a repository checkout.
-
-Save the wheel in a folder on your setup computer and open a terminal there.
-Run these commands while you have internet access. If the downloaded wheel has a
-different version number, use its filename in the install command.
-
-**macOS / Linux**
-
-```sh
-python3 -m venv .venv
-.venv/bin/python -m pip install --only-binary=:all: --upgrade pip
-.venv/bin/python -m pip install --only-binary=:all: ./winix_local-0.1.0-py3-none-any.whl
-```
-
-**Windows (PowerShell)**
-
-```powershell
-py -3 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --only-binary=:all: --upgrade pip
-.\.venv\Scripts\python.exe -m pip install --only-binary=:all: .\winix_local-0.1.0-py3-none-any.whl
-```
-
-This installs the tool and its prebuilt dependencies. You'll still need Python,
-but no compiler or build tools. If a dependency has no compatible wheel, pip stops
-with an error instead of trying to compile it.
+The downloads support Windows 10+ x64, Intel and Apple Silicon Macs on macOS 15+,
+and Linux with glibc (Ubuntu 22.04+ on x64, Ubuntu 24.04+ on ARM64). Alpine/musl,
+32-bit systems, and native Windows ARM64 aren't covered by these builds.
 
 ### 2. Find the purifier's MAC and model
 
 Skip this if you already know the full MAC and exact model identifier.
 
-Hold the purifier's Wi-Fi button for about three seconds until it blinks, then
-connect your computer to its `WINIX SMART ...` network. On an already configured
-purifier, this can reset its Wi-Fi setup.
-
-From the folder where you installed the setup tool, run:
+Start on your usual Wi-Fi with internet access. Open Terminal on macOS/Linux or
+PowerShell on Windows and run:
 
 **macOS / Linux**
 
 ```sh
-.venv/bin/python -c "from winix_local.discovery import identify_device; print(identify_device())"
+curl -fsSL https://github.com/walero-moon/winix-local/releases/latest/download/setup.sh | sh -s -- identify
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-.\.venv\Scripts\python.exe -c "from winix_local.discovery import identify_device; print(identify_device())"
+& ([scriptblock]::Create((Invoke-RestMethod 'https://github.com/walero-moon/winix-local/releases/latest/download/setup.ps1'))) identify
 ```
 
-The command only reads the device identity and prints the MAC and model, such as
-`('AABBCCDDEEFF', '5510_US')`. If automatic MAC lookup fails and
-you know the full MAC, replace `identify_device()` with
-`identify_device(mac='AABBCCDDEEFF')`, using your own address.
+The launcher downloads the matching executable and checks its SHA-256 checksum.
+When the tool asks, hold the purifier's Wi-Fi button for about three seconds until
+it blinks, connect to its `WINIX SMART ...` network, then press Enter.
+On an already configured purifier, this can reset its Wi-Fi setup.
 
-Write down both values, then reconnect your computer to your usual network.
-You'll need the full MAC, not the short suffix in the Wi-Fi name or the FCC ID.
+This only reads the identity. It prints the full MAC and model, for example:
+
+```text
+MAC: AABBCCDDEEFF
+Model: 5510_US
+```
+
+Write down both, then reconnect your computer to your usual network. You'll need
+the full MAC, not the short suffix in the Wi-Fi name or the FCC ID. If automatic
+MAC lookup fails, rerun the command with `identify --mac AABBCCDDEEFF`, using your
+own full MAC.
+
+The launchers are [short scripts you can read first](src/launchers/).
+They run without administrator access and remove the temporary executable when
+it exits. If you'd rather keep a copy, download your platform's `winix-local-*`
+executable and its matching `-licenses.txt` from the
+[latest release](https://github.com/walero-moon/winix-local/releases/latest).
+On macOS/Linux, run `chmod +x` on the executable before using it.
+
+The executables aren't signed with Apple or Microsoft developer certificates.
+Your OS may warn about an unrecognized publisher or block the download. Only
+approve a file if you trust its source. The launcher verifies the release hash;
+that isn't an Apple or Microsoft signature.
 
 ### 3. Add the integration in Home Assistant
 
@@ -190,23 +183,24 @@ isn't a complete Mosquitto configuration you can mount and run as-is.
 
 ### 5. Connect the purifier
 
-Save `provision.json` on your computer, for example in Downloads. Start with the
-computer on your **usual network**, where it can reach HA and the broker. Run
-the command from the folder where you installed the setup tool.
+Save `provision.json` on your computer, for example in Downloads. Start on your
+**usual network**, with internet access and a route to HA and the broker. Run:
 
 **macOS / Linux**
 
 ```sh
-.venv/bin/python -m winix_local setup --config "$HOME/Downloads/provision.json"
+curl -fsSL https://github.com/walero-moon/winix-local/releases/latest/download/setup.sh | sh -s -- setup --config "$HOME/Downloads/provision.json"
 ```
 
 **Windows (PowerShell)**
 
 ```powershell
-.\.venv\Scripts\python.exe -m winix_local setup --config "$HOME\Downloads\provision.json"
+& ([scriptblock]::Create((Invoke-RestMethod 'https://github.com/walero-moon/winix-local/releases/latest/download/setup.ps1'))) setup --config "$HOME\Downloads\provision.json"
 ```
 
-Change the path if you saved the file somewhere else.
+Change the path if you saved the file somewhere else. The command downloads and
+verifies the executable before asking you to switch Wi-Fi; it doesn't need
+internet access after that download.
 
 The tool checks the local servers first, then asks you to put the purifier in
 pairing mode and join its `WINIX SMART ...` network. Follow the prompts to choose
@@ -239,7 +233,7 @@ HA and the broker stay running; the setup computer can be disconnected.
 | TLS or CA fingerprint error | Correct `provision.json`, certificate hostname, and device clock; don't turn off certificate verification |
 | Can't identify the purifier | Correct hotspot and pairing mode; Linux needs `ip` or `arp`, Windows needs `arp.exe`; try the full MAC fallback |
 | Purifier joins Wi-Fi but stays unavailable | Its routes to HA and MQTT, DNS/NTP, broker client-certificate settings, CN mapping, and topic permissions |
-| Pip reports no matching binary distribution | Update pip and use a Python/platform combination with dependency wheels; CI checks Python 3.9 and 3.13 on Windows, macOS and Linux |
+| Setup download fails | Start on your usual network with internet access; check the supported OS/architecture above; macOS/Linux needs `curl` and `shasum` or `sha256sum` |
 | Download link stopped working | Reopen Configure while signed in as an HA administrator |
 
 If the entry is retrying, you can still open Configure to download its files.
@@ -341,7 +335,23 @@ The release workflow builds the downloads for users. To build them locally:
 .\.venv\Scripts\python.exe -m winix_local.build --project-root .
 ```
 
-The wheel and source archive are written to `dist/`, alongside the HA ZIP.
+The wheel and source archive are written to `dist/`, alongside the HA ZIP. They
+remain available for Python users and developers; ordinary setup uses the native
+executables.
+
+To build the executable for the OS and architecture you're on:
+
+```sh
+python -m pip install . pyinstaller==6.22.3
+python src/tools/build_standalone.py
+python src/tools/check_standalone.py --directory dist/native
+```
+
+The standalone workflow builds each target on its own runner. Its checks exercise
+the executable outside the checkout, including certificate generation, catalog
+loading, read-only identification against a local TCP fixture, and both successful
+and failed checksum checks in the platform launcher. They don't provision hardware
+or test installation through HACS.
 
 ### Repository layout
 
@@ -352,20 +362,21 @@ src/
   tests/
     unit/
     integration/
-  tools/                        Release installation checks
+  tools/                        Executable builds and release checks
+  launchers/                    Shell and PowerShell download scripts
 examples/mosquitto/              Optional Compose example
 .github/workflows/              CI checks
 ```
 
-All Python code and tests live under `src/`. The ZIP builder copies shared modules
+All authored code and tests live under `src/`. The ZIP builder copies shared modules
 into the integration's `_core/` package; edit their source in `src/winix_local/`,
 not the generated copies. Installing the raw HA source folder won't work without
 that build step.
 
 `manifest.json` is the shared HA metadata. `hacs.json` describes the ZIP release
-layout. Each tagged release includes `winix_local.zip`. While the repository is
-private, download it with an account that has access and install it manually.
-Making the repository public and listing it in HACS are separate steps.
+layout. Each tagged release includes `winix_local.zip`, which HACS installs from
+this public custom repository. Inclusion in the default HACS catalog is a separate
+submission.
 
 The installed commands are `winix-local`, `winix-local-broker` and
 `winix-local-build`. The broker exporter writes Mosquitto-specific files from an
@@ -381,4 +392,5 @@ CI checks Python 3.9 and 3.13 on Windows, macOS and Linux, plus the built integr
 inside HA. The [Install release workflow](https://github.com/walero-moon/winix-local/actions/workflows/install.yml)
 also installs the built wheel in fresh environments on those platforms, using
 only prebuilt dependencies. Future version tags must pass those installation
-checks before the release assets are published.
+checks, along with all native executable and launcher checks, before the release
+assets are published.

@@ -1,5 +1,5 @@
 include README.md LICENSE AGENTS.md Makefile hacs.json manifest.json CHANGELOG.md CONTRIBUTING.md SECURITY.md
-recursive-include src *.py *.json
+recursive-include src *.py *.json *.sh *.ps1
 recursive-include docs *.md
 recursive-include examples *.yaml *.md .env.example
 recursive-include .github *.yml *.yaml *.md

@@ -25,13 +25,15 @@ Maintainers update `pyproject.toml`, `manifest.json` and `CHANGELOG.md` together
 After the change is committed and pushed, push an annotated tag matching the
 version, for example `v0.1.0` for version `0.1.0`.
 
-The Release workflow runs the platform and HA checks, builds the HACS ZIP, wheel
-and source archive, and tests installation of that wheel on all three platforms
-using only prebuilt dependencies. It then publishes a GitHub release with
+The Release workflow runs the platform and HA checks, builds native setup
+executables, the HACS ZIP, wheel and source archive, and tests wheel installation
+on all three platforms using only prebuilt dependencies. Native executable and
+launcher checks must also pass for every target. It then publishes a GitHub release with
 SHA-256 checksums. It refuses mismatched version tags or missing release notes. A tag push publishes a
 release if those checks pass; it doesn't deploy HA or publish anything to PyPI.
-Repository visibility also applies to its releases. It remains private until the
-owner chooses to make it public.
+The repository and releases are public. HACS users add it as a custom repository.
+The launcher assets have their release tag baked in, so their executables and
+checksums always come from the same release even if a newer version appears.
 
 The **Install release** workflow can also check an already-published version.
 Run it manually from Actions and supply its tag. It installs the downloaded wheel

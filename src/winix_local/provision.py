@@ -109,6 +109,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Prepare certificates/files without changing the purifier",
     )
 
+    identify_parser = commands.add_parser(
+        "identify", help="Read the purifier MAC and model without changing its settings"
+    )
+    identify_parser.add_argument("--mac", help="Optional full MAC fallback")
+    identify_parser.add_argument("--setup-host", default="192.168.43.1")
+    identify_parser.add_argument("--setup-port", type=int, default=47000)
+    identify_parser.add_argument(
+        "--no-prompt",
+        action="store_true",
+        help="Already connected to the setup hotspot",
+    )
+
     return parser
 
 
@@ -295,7 +307,17 @@ def main(argv=None) -> None:
     os.umask(0o077)
     args = build_parser().parse_args(argv)
 
-    if args.command == "init":
+    if args.command == "identify":
+        from .discovery import identify_device
+
+        if not args.no_prompt:
+            input(
+                "Put the purifier in pairing mode, join its WINIX SMART Wi-Fi, "
+                "then press Enter: "
+            )
+        mac, model = identify_device(args.setup_host, args.setup_port, mac=args.mac)
+        print(f"MAC: {mac}\nModel: {model}")
+    elif args.command == "init":
         initialize_installation(args)
     elif args.command == "setup":
         from .setup import run_setup
