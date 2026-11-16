@@ -2,7 +2,7 @@
   "domain": "winix_local",
   "name": "Winix Local",
   "version": "0.1.0",
-  "documentation": "https://github.com/walero-moon/winix-local/blob/main/docs/ha-setup.md",
+  "documentation": "https://github.com/walero-moon/winix-local/blob/main/README.md#setup",
   "codeowners": [
     "@walero-moon"
   ],
