@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.9] - 2026-11-16
+
+- Fix registration TLS negotiation with stock Winix firmware on newer Python
+  runtimes. The listener now accepts AES256-SHA256 and AES128-SHA256 alongside
+  the existing modern cipher suites.
+- Keep TLS 1.2 as the minimum version and preserve OpenSSL's security level.
+  Existing certificates remain usable.
+- Add HTTPS registration tests for both purifier cipher suites and verify the
+  same negotiation through the built HACS integration.
+
 ## [0.1.8] - 2026-11-16
 
 - Fix the setup-file download links opening HA's dashboard instead of downloading

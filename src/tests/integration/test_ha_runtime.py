@@ -1052,6 +1052,34 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
                 for port in (18080, 18443):
                     with socket.create_connection(("127.0.0.1", port), timeout=2):
                         pass
+                # Exercise the generated HACS runtime with the purifier's
+                # strongest offered cipher, not the test computer's defaults.
+                import ssl
+
+                client = ssl.create_default_context(cafile=str(root / "ca.pem"))
+                client.minimum_version = ssl.TLSVersion.TLSv1_2
+                client.maximum_version = ssl.TLSVersion.TLSv1_2
+                client.set_ciphers("AES256-SHA256")
+                reader, writer = await asyncio.wait_for(
+                    asyncio.open_connection("127.0.0.1", 18443, ssl=client),
+                    timeout=3,
+                )
+                try:
+                    self.assertEqual(
+                        writer.get_extra_info("ssl_object").cipher()[0],
+                        "AES256-SHA256",
+                    )
+                    writer.write(
+                        b"GET /auth/register/token/AABBCCDDEEFF HTTP/1.1\r\n"
+                        b"Host: 127.0.0.1\r\nConnection: close\r\n\r\n"
+                    )
+                    await writer.drain()
+                    response = await asyncio.wait_for(reader.read(), timeout=3)
+                    self.assertTrue(response.startswith(b"HTTP/1.1 200"))
+                finally:
+                    writer.close()
+                    await writer.wait_closed()
+
                 self.assertTrue(await async_unload_entry(hass, entry))
                 for port in (18080, 18443):
                     with self.assertRaises(OSError):

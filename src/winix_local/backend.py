@@ -24,6 +24,19 @@ class RegistrationServer:
 
         self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         self.context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+        # Stock Winix TLS clients offer static RSA suites that newer Python
+        # defaults omit. Add their SHA-256 suites without enabling SHA-1 suites
+        # or lowering OpenSSL's security level. Keep the modern defaults too.
+        default_ciphers = [
+            cipher["name"]
+            for cipher in self.context.get_ciphers()
+            if cipher["protocol"] != "TLSv1.3"
+        ]
+        self.context.set_ciphers(
+            ":".join([*default_ciphers, "AES256-SHA256", "AES128-SHA256"])
+        )
+
         self.context.load_cert_chain(
             certificate_directory / "auth.pem", certificate_directory / "auth.key"
         )
