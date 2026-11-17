@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.8] - 2026-11-16
+
+- Fix the setup-file download links opening HA's dashboard instead of downloading
+  the files. Links now use normal browser requests and bypass HA's page router.
+- Add a regression check for both download links in the built HACS ZIP.
+
+The setup executables are unchanged from 0.1.3.
+
 ## [0.1.7] - 2026-11-16
 
 - Add an explicit replacement option for saved installations, with a separate

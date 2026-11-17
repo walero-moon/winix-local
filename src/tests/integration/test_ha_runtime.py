@@ -813,6 +813,39 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual((first / "key").read_text(), "original")
             self.assertEqual((second / "key").read_text(), "new")
 
+    async def test_download_links_bypass_home_assistant_page_navigation(self):
+        from html.parser import HTMLParser
+        import custom_components.winix_local as integration
+
+        class Links(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.anchors = []
+
+            def handle_starttag(self, tag, attributes):
+                if tag == "a":
+                    self.anchors.append(dict(attributes))
+
+        root = Path(integration.__file__).parent
+        for name in ("strings.json", "translations/en.json"):
+            with self.subTest(file=name):
+                strings = json.loads((root / name).read_text())
+                description = strings["options"]["step"]["init"]["description"]
+                parser = Links()
+                parser.feed(
+                    description.format(
+                        broker="/api/winix_local/AABBCCDDEEFF/export/broker?authSig=test",
+                        provision="/api/winix_local/AABBCCDDEEFF/export/provision?authSig=test",
+                        backup="",
+                    )
+                )
+                self.assertEqual(len(parser.anchors), 2)
+                for anchor in parser.anchors:
+                    # HA intercepts ordinary same-origin links as panel routes.
+                    # An explicit target leaves the GET to the browser instead.
+                    self.assertEqual(anchor.get("target"), "_self")
+                    self.assertIn("authSig=test", anchor["href"])
+
     async def test_admin_downloads_are_scoped_private_and_broker_neutral(self):
         from types import SimpleNamespace
         from aiohttp import web

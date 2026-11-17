@@ -106,7 +106,7 @@
     "step": {
       "init": {
         "title": "Download local setup files",
-        "description": "[Download broker certificate package]({broker}) \u2014 contains the broker\u2019s private key. Keep it private. Includes broker-neutral authentication and exact topic-permission requirements; apply these using your broker\u2019s own settings. The CA signing key is never included.\n\n[Download public provisioning configuration]({provision}) \u2014 use with `winix-local setup --config provision.json`. It contains no token, private key or Wi-Fi password.\n\nLinks expire after five minutes and require your administrator login to remain valid. Reopen this dialog for new links. HA\u2019s MQTT integration must use the same broker. Neither download changes the broker or purifier.{backup}"
+        "description": "<a href=\"{broker}\" target=\"_self\">Download broker certificate package</a> \u2014 contains the broker\u2019s private key. Keep it private. Includes broker-neutral authentication and exact topic-permission requirements; apply these using your broker\u2019s own settings. The CA signing key is never included.\n\n<a href=\"{provision}\" target=\"_self\">Download public provisioning configuration</a> \u2014 use with `winix-local setup --config provision.json`. It contains no token, private key or Wi-Fi password.\n\nLinks expire after five minutes and require your administrator login to remain valid. Reopen this dialog for new links. HA\u2019s MQTT integration must use the same broker. Neither download changes the broker or purifier.{backup}"
       }
     },
     "abort": {
