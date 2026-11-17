@@ -583,9 +583,235 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             sentinel = bundle / "keep"
             sentinel.write_text("existing")
             result = await flow.async_step_confirm({})
-            self.assertEqual(result["errors"], {"base": "bundle_exists"})
+            self.assertEqual(result["step_id"], "installation_exists")
+            self.assertEqual(result["menu_options"], ["reuse", "replace"])
             self.assertEqual(sentinel.read_text(), "existing")
             await hass.async_stop()
+
+    async def test_replacement_requires_consent_and_preserves_complete_bundle(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from custom_components.winix_local._core.pki import create_bundle
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="ha.test",
+            mqtt_host="mqtt.test",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            create_bundle(bundle, **settings)
+            (bundle / "owner-note").write_text("keep this too")
+            original = {path.name: path.read_bytes() for path in bundle.iterdir()}
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            flow.async_create_entry = Mock(return_value={"type": "create_entry"})
+
+            result = await flow.async_step_connection(settings)
+            self.assertEqual(result["step_id"], "installation_exists")
+            await flow.async_step_replace()
+            result = await flow.async_step_generate({"retain_ca_key": True})
+            self.assertEqual(result["step_id"], "replace_confirm")
+            for inputs in ({}, {"confirm_replacement": False}):
+                result = await flow.async_step_replace_confirm(inputs)
+                self.assertEqual(
+                    result["errors"], {"base": "replacement_not_confirmed"}
+                )
+                self.assertEqual(
+                    original, {p.name: p.read_bytes() for p in bundle.iterdir()}
+                )
+                self.assertFalse((bundle.parent / "backups").exists())
+
+            result = await flow.async_step_replace_confirm(
+                {"confirm_replacement": True}
+            )
+            self.assertEqual(result["type"], "create_entry")
+            entry = flow.async_create_entry.call_args.kwargs["data"]
+            self.assertEqual(set(entry), {"mac", "backup_path"})
+            backup = Path(directory) / entry["backup_path"]
+            self.assertEqual(
+                original, {p.name: p.read_bytes() for p in backup.iterdir()}
+            )
+            self.assertNotEqual(
+                (bundle / "bundle.json").read_bytes(), original["bundle.json"]
+            )
+            self.assertTrue((bundle / "ca.key").exists())
+            self.assertEqual(flow._material, {})
+            if os.name != "nt":
+                for path in [
+                    backup.parent.parent,
+                    backup.parent,
+                    backup,
+                    *backup.rglob("*"),
+                ]:
+                    self.assertEqual(
+                        path.stat().st_mode & 0o777, 0o700 if path.is_dir() else 0o600
+                    )
+            await hass.async_stop()
+
+    async def test_managed_replacement_reaches_confirmation_without_writing(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from homeassistant.config_entries import ConfigEntries
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="ha.test",
+            mqtt_host="mqtt.test",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            bundle.mkdir(parents=True)
+            (bundle / "keep").write_text("original")
+            hass = HomeAssistant(directory)
+            hass.config_entries = ConfigEntries(hass, {})
+            await hass.config_entries.async_initialize()
+            manager = hass.config_entries.flow
+            try:
+                with patch(
+                    "homeassistant.config_entries._async_get_flow_handler",
+                    AsyncMock(return_value=WinixLocalFlow),
+                ):
+                    result = await manager.async_init(
+                        "winix_local", context={"source": "user"}
+                    )
+                    flow_id = result["flow_id"]
+                    await manager.async_configure(flow_id, {"next_step_id": "replace"})
+                    result = await manager.async_configure(flow_id, settings)
+                    self.assertEqual(result["step_id"], "certificate_source")
+                    await manager.async_configure(flow_id, {"next_step_id": "generate"})
+                    result = await manager.async_configure(
+                        flow_id, {"retain_ca_key": False}
+                    )
+                    self.assertEqual(result["step_id"], "replace_confirm")
+                    result = await manager.async_configure(
+                        flow_id, {"confirm_replacement": False}
+                    )
+                    self.assertEqual(
+                        result["errors"], {"base": "replacement_not_confirmed"}
+                    )
+                    self.assertEqual((bundle / "keep").read_text(), "original")
+                    manager.async_abort(flow_id)
+            finally:
+                await hass.async_stop()
+
+    async def test_reuse_keeps_existing_credentials_without_creating_backup(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from custom_components.winix_local._core.pki import create_bundle
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5520_US",
+            server_host="ha.test",
+            mqtt_host="mqtt.test",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            bundle = Path(directory) / "winix_local/AABBCCDDEEFF"
+            create_bundle(bundle, **settings)
+            original = (bundle / "bundle.json").read_bytes()
+            flow = WinixLocalFlow()
+            flow.hass = hass
+            flow.async_set_unique_id = AsyncMock()
+            flow._abort_if_unique_id_configured = Mock()
+            flow.async_create_entry = Mock(return_value={"type": "create_entry"})
+            await flow.async_step_connection(settings)
+            await flow.async_step_reuse()
+            self.assertEqual(
+                flow.async_create_entry.call_args.kwargs["data"],
+                {"mac": settings["mac"]},
+            )
+            self.assertEqual((bundle / "bundle.json").read_bytes(), original)
+            self.assertFalse((bundle.parent / "backups").exists())
+            await hass.async_stop()
+
+    async def test_replacement_storage_failures_preserve_the_old_files(self):
+        from custom_components.winix_local import config_flow
+
+        def prepare(directory, *args):
+            directory.mkdir()
+            (directory / "key").write_text("new")
+            return {"mac": "AABBCCDDEEFF"}
+
+        for failure in ("prepare", "promote", "restore", "link"):
+            with (
+                self.subTest(failure=failure),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                bundle = Path(temporary) / "AABBCCDDEEFF"
+                bundle.mkdir()
+                (bundle / "key").write_text("old")
+                if failure == "link":
+                    (bundle / "link").symlink_to(bundle / "key")
+                original_rename = Path.rename
+
+                def rename(path, destination):
+                    if path.name == "installation" and Path(destination) == bundle:
+                        if ".winix-replacement-" in str(path) or failure == "restore":
+                            raise OSError("injected promotion or restore failure")
+                    return original_rename(path, destination)
+
+                with (
+                    patch.object(
+                        config_flow,
+                        "create_installation",
+                        side_effect=(
+                            OSError("preparation failed")
+                            if failure == "prepare"
+                            else prepare
+                        ),
+                    ),
+                    patch.object(Path, "rename", rename),
+                ):
+                    with self.assertRaises((OSError, ValueError)):
+                        config_flow._create_or_replace_installation(
+                            bundle, {"mac": bundle.name}, "generate", {}, False, True
+                        )
+
+                if failure == "restore":
+                    self.assertFalse(bundle.exists())
+                    backups = list(
+                        (Path(temporary) / "backups").glob("*/installation/key")
+                    )
+                    self.assertEqual(len(backups), 1)
+                    self.assertEqual(backups[0].read_text(), "old")
+                else:
+                    self.assertEqual((bundle / "key").read_text(), "old")
+
+    async def test_repeated_replacements_keep_distinct_backups(self):
+        from custom_components.winix_local import config_flow
+
+        def prepare(directory, *args):
+            directory.mkdir()
+            (directory / "key").write_text("new")
+            return {"mac": "AABBCCDDEEFF"}
+
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = Path(temporary) / "AABBCCDDEEFF"
+            bundle.mkdir()
+            (bundle / "key").write_text("original")
+            with patch.object(config_flow, "create_installation", side_effect=prepare):
+                _, first = config_flow._create_or_replace_installation(
+                    bundle, {"mac": bundle.name}, "generate", {}, False, True
+                )
+                _, second = config_flow._create_or_replace_installation(
+                    bundle, {"mac": bundle.name}, "generate", {}, False, True
+                )
+            self.assertNotEqual(first, second)
+            self.assertEqual((first / "key").read_text(), "original")
+            self.assertEqual((second / "key").read_text(), "new")
 
     async def test_admin_downloads_are_scoped_private_and_broker_neutral(self):
         from types import SimpleNamespace

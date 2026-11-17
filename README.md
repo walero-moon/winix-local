@@ -142,9 +142,11 @@ key to issue certificates later. This version doesn't renew them automatically.
 > A retained key lives in HA's configuration folder and may be included in backups.
 > Saved keys aren't encrypted at rest, so keep those backups private.
 
-Review the settings and submit. If you already have an installation bundle in
-`/config/winix_local/<MAC>/`, use **Use an existing installation bundle** instead.
-Existing bundles won't be overwritten.
+Review the settings and submit. If you already have saved files in
+`/config/winix_local/<MAC>/`, choose **Use an existing installation bundle** to
+keep them. **Replace an existing installation** creates a private backup first
+and asks you to confirm that you'll update the broker and set up the purifier
+again. See [replacing an installation](#replacing-an-installation).
 
 ### 4. Configure your MQTT broker
 
@@ -253,11 +255,34 @@ If the entry is retrying, you can still open Configure to download its files.
 Fix the broker connection or registration listener, then reload the entry before
 running the setup tool.
 
-Back up a working `/config/winix_local/<MAC>/` directory before replacing anything.
-If setup stopped after creating that directory, use the existing-bundle option
-instead of generating new credentials. The UI doesn't currently edit an existing
-installation's hosts or certificates in place. Replacing its CA requires setting
-up the purifier again.
+### Replacing an installation
+
+If you only removed the HA entry or setup stopped partway through, choose
+**Use an existing installation bundle** to keep the saved credentials.
+
+To create a replacement:
+
+1. Remove the purifier's existing Winix Local entry from HA, if present. Its saved
+   files stay on disk.
+2. Add Winix Local and choose **Replace an existing installation**. Enter the
+   connection settings, choose certificates, and tick the confirmation box.
+3. Open **Configure** to download the new broker package and `provision.json`.
+   Apply the new certificates, trusted CA and topic permissions to the broker.
+4. Run the setup tool again with the new `provision.json` to reconfigure the
+   purifier. Update HA's MQTT connection if its broker address or trust changed.
+
+HA prepares the replacement before moving the old directory into
+`/config/winix_local/backups/<MAC>-<timestamp>-<unique ID>/installation/`.
+**Configure** shows the backup path. Backups aren't deleted automatically and
+contain private keys and credentials. Keep them private, including in HA backups.
+If other devices share the broker's TLS listener, changing its CA may require
+updating their trust too. Reuse your CA or use a separate listener when needed.
+
+If writing the replacement fails, HA attempts to restore the original directory.
+For a manual rollback, remove the HA entry first, then restore the complete old
+bundle to `/config/winix_local/<MAC>/` and use the existing-bundle option. If you
+already changed the broker or purifier, restore their matching settings too.
+Restoring the HA files alone doesn't undo those changes.
 
 ### Setup tool compatibility
 

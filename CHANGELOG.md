@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.7] - 2026-11-16
+
+- Add an explicit replacement option for saved installations, with a separate
+  confirmation explaining the broker and purifier setup required afterward.
+- Prepare new credentials before backing up the complete old installation in a
+  private, uniquely named directory. Restore the old files if the swap fails.
+- Show the backup path in Configure and document replacement and manual rollback.
+- Test replacement consent, backup contents and permissions, repeated backups,
+  failure recovery, and the setup flow through Home Assistant.
+
+The setup executables are unchanged from 0.1.3.
+
 ## [0.1.6] - 2026-11-16
 
 - Make the certificate-generation screen easier to scan, with separate off/on

@@ -6,7 +6,8 @@
         "title": "Set up Winix Local",
         "menu_options": {
           "connection": "Set up certificates and local endpoints",
-          "existing": "Use an existing installation bundle"
+          "existing": "Use an existing installation bundle",
+          "replace": "Replace an existing installation"
         }
       },
       "connection": {
@@ -71,24 +72,41 @@
         "data": {
           "mac": "Purifier MAC address"
         }
+      },
+      "installation_exists": {
+        "title": "An installation already exists",
+        "description": "There are saved certificates and settings for `{mac}`. Keep them, or create a replacement with a backup.",
+        "menu_options": {
+          "reuse": "Use the saved installation",
+          "replace": "Replace it and keep a backup"
+        }
+      },
+      "replace_confirm": {
+        "title": "Replace this installation?",
+        "description": "**Device:** {model} (`{mac}`)\n\nThe old installation will be backed up under `{backup_root}` before replacement. Control may be interrupted until you finish setup.\n\n**After replacement**\n\n1. Download the new files from **Winix Local \u2192 Configure**.\n2. Update the broker's certificates, trusted CA and topic permissions.\n3. Run setup again with the new `provision.json` to reconfigure the purifier.\n\nKeep the backup private. It contains the old credentials and private keys.",
+        "data": {
+          "confirm_replacement": "I understand that I must update the broker and set up the purifier again"
+        }
       }
     },
     "error": {
       "invalid_settings": "Check the exact model, MAC, LAN hosts and distinct registration ports.",
       "invalid_certificates": "Certificates or keys are invalid, expired, mismatched, or incompatible with the required identity, issuer, hostname or purpose. Re-enter the PEM material; private values were not retained in the form.",
-      "bundle_exists": "An installation already exists for this MAC. Use the existing-bundle path; it will not be replaced.",
       "creation_failed": "Could not create the private installation. Check directory access and certificate material.",
-      "invalid_bundle": "Bundle missing or invalid. Check /config/winix_local/<MAC>/."
+      "invalid_bundle": "Bundle missing or invalid. Check /config/winix_local/<MAC>/.",
+      "replacement_missing": "No saved installation was found for this MAC. Choose new setup instead.",
+      "replacement_not_confirmed": "Confirm the broker and purifier setup requirements before replacing.",
+      "replacement_failed": "Replacement failed. Check directory permissions and the backup folder before retrying. The original files were restored when possible."
     },
     "abort": {
-      "already_configured": "This purifier is already configured."
+      "already_configured": "This purifier already has an HA entry. To replace its installation, remove that entry first. Its saved files will remain available for backup and replacement."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Download local setup files",
-        "description": "[Download broker certificate package]({broker}) \u2014 contains the broker\u2019s private key. Keep it private. Includes broker-neutral authentication and exact topic-permission requirements; apply these using your broker\u2019s own settings. The CA signing key is never included.\n\n[Download public provisioning configuration]({provision}) \u2014 use with `winix-local setup --config provision.json`. It contains no token, private key or Wi-Fi password.\n\nLinks expire after five minutes and require your administrator login to remain valid. Reopen this dialog for new links. HA\u2019s MQTT integration must use the same broker. Neither download changes the broker or purifier."
+        "description": "[Download broker certificate package]({broker}) \u2014 contains the broker\u2019s private key. Keep it private. Includes broker-neutral authentication and exact topic-permission requirements; apply these using your broker\u2019s own settings. The CA signing key is never included.\n\n[Download public provisioning configuration]({provision}) \u2014 use with `winix-local setup --config provision.json`. It contains no token, private key or Wi-Fi password.\n\nLinks expire after five minutes and require your administrator login to remain valid. Reopen this dialog for new links. HA\u2019s MQTT integration must use the same broker. Neither download changes the broker or purifier.{backup}"
       }
     },
     "abort": {
