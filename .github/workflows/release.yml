@@ -8,13 +8,33 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      native_changed: ${{ steps.scope.outputs.native_changed }}
+      reuse_tag: ${{ steps.scope.outputs.reuse_tag }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python src/tools/release_scope.py release --output "$GITHUB_OUTPUT"
   validate:
+    needs: scope
     uses: ./.github/workflows/validate.yml
+    with:
+      platforms: ${{ needs.scope.outputs.native_changed == 'true' && 'all' || 'linux' }}
   standalone:
-    needs: validate
+    needs: [scope, validate]
+    if: needs.scope.outputs.native_changed == 'true'
     uses: ./.github/workflows/standalone.yml
   build:
-    needs: [validate, standalone]
+    needs: [scope, validate, standalone]
+    if: ${{ !cancelled() && needs.validate.result == 'success' && (needs.standalone.result == 'success' || needs.standalone.result == 'skipped') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -26,10 +46,20 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - run: python -m build
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.scope.outputs.native_changed == 'true'
         with:
           pattern: native-*
           merge-multiple: true
           path: dist
+      - name: Reuse unchanged setup executables
+        if: needs.scope.outputs.native_changed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REUSE_TAG: ${{ needs.scope.outputs.reuse_tag }}
+        run: |
+          gh release download "$REUSE_TAG" --pattern 'winix-local-*' --pattern SHA256SUMS --dir build/reuse
+          python src/tools/release_scope.py reuse --source build/reuse --destination dist
       - name: Check version and prepare release files
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -40,8 +70,10 @@ jobs:
           path: dist/
           if-no-files-found: error
   install:
-    needs: build
+    needs: [scope, build]
     uses: ./.github/workflows/install.yml
+    with:
+      full_matrix: ${{ needs.scope.outputs.native_changed == 'true' }}
   publish:
     needs: [build, install]
     runs-on: ubuntu-24.04

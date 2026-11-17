@@ -8,6 +8,10 @@ on:
         default: v0.1.0
         type: string
   workflow_call:
+    inputs:
+      full_matrix:
+        type: boolean
+        default: true
 permissions:
   contents: read
 jobs:
@@ -17,8 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15-intel, windows-latest]
-        python: ['3.9', '3.13']
+        os: ${{ fromJSON((github.event_name == 'workflow_dispatch' || inputs.full_matrix) && '["ubuntu-24.04","macos-15-intel","windows-latest"]' || '["ubuntu-24.04"]') }}
+        python: ${{ fromJSON((github.event_name == 'workflow_dispatch' || inputs.full_matrix) && '["3.9","3.13"]' || '["3.13"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

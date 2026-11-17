@@ -5,17 +5,36 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      platforms:
+        type: string
+        default: auto
 permissions:
   contents: read
 jobs:
+  scope:
+    runs-on: ubuntu-24.04
+    outputs:
+      full_matrix: ${{ steps.scope.outputs.full_matrix }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        env:
+          PLATFORMS: ${{ inputs.platforms || 'auto' }}
+          BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before || '' }}
+        run: python src/tools/release_scope.py validation --mode "$PLATFORMS" --base-ref "$BASE_REF" --output "$GITHUB_OUTPUT"
   package:
+    needs: scope
     name: Python ${{ matrix.python }} / ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15-intel, windows-latest]
-        python: ['3.9', '3.13']
+        os: ${{ fromJSON(needs.scope.outputs.full_matrix == 'true' && '["ubuntu-24.04","macos-15-intel","windows-latest"]' || '["ubuntu-24.04"]') }}
+        python: ${{ fromJSON(needs.scope.outputs.full_matrix == 'true' && '["3.9","3.13"]' || '["3.13"]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

@@ -1,12 +1,18 @@
 # Changelog
 
-## [0.1.4] - 2026-11-16
+## [0.1.5] - 2026-11-16
 
 - Make the certificate-generation screen easier to scan, with separate off/on
   explanations for saving the CA signing key and a short backup reminder.
 - Replace the installation-confirmation paragraph with a settings summary and
   numbered next steps. Link to the current setup commands, which start on the
   computer's usual Wi-Fi network.
+- HA-only releases reuse verified setup executables when their source and build
+  inputs are unchanged. They run Linux and HA checks without rebuilding unchanged
+  tools on Windows and macOS.
+
+The setup executables are unchanged from 0.1.3. The 0.1.4 tag was not published
+as a release.
 
 ## [0.1.3] - 2026-11-16
 

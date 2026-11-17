@@ -6,7 +6,7 @@
 Control your Winix air purifier (and maybe other devices) locally through Home Assistant, using its
 stock firmware.
 
-**Status: experimental 0.1.4.** Verified on a stock 5510_US on 2026-11-13
+**Status: experimental 0.1.5.** Verified on a stock 5510_US on 2026-11-13
 (it's the only hardware I have). The 59-model catalog is just metadata, not a
 list of supported devices. Feel free to try it out though.
 
@@ -400,7 +400,7 @@ python src/tools/build_standalone.py
 python src/tools/check_standalone.py --directory dist/native
 ```
 
-The standalone workflow builds each target on its own runner. Its checks exercise
+When setup-tool inputs change, the standalone workflow builds each target on its own runner. Its checks exercise
 the executable outside the checkout, including certificate generation, catalog
 loading, read-only identification against a local TCP fixture, and both successful
 and failed checksum checks in the platform launcher. They don't provision hardware
@@ -441,12 +441,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development and release instructions,
 [CHANGELOG.md](CHANGELOG.md) for release notes, and [SECURITY.md](SECURITY.md) for
 security reports. The project uses the [MIT license](LICENSE).
 
-CI checks Python 3.9 and 3.13 on Windows, macOS and Linux, plus the built integration
-inside HA. The [Install release workflow](https://github.com/walero-moon/winix-local/actions/workflows/install.yml)
+Changes to the setup tools run checks on Python 3.9 and 3.13 across Windows,
+macOS and Linux, plus the built integration inside HA. HA-only changes run the
+Linux Python checks and HA runtime checks. The [Install release workflow](https://github.com/walero-moon/winix-local/actions/workflows/install.yml)
 also installs the built wheel in fresh environments on those platforms, using
-only prebuilt dependencies. Future version tags must pass those installation
-checks, along with all native executable and launcher checks, before the release
-assets are published.
+only prebuilt dependencies. HA-only releases check the new wheel on Linux and
+reuse the previous release's setup executables after checking their source/build
+inputs and published checksums. Tool changes require the full platform and native
+executable checks. Launchers and checksums are prepared for each new release.
 
 ## Acknowledgments
 
