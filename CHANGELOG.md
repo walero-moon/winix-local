@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.1.5] - 2026-11-16
+## [0.1.6] - 2026-11-16
 
 - Make the certificate-generation screen easier to scan, with separate off/on
   explanations for saving the CA signing key and a short backup reminder.
@@ -11,8 +11,8 @@
   inputs are unchanged. They run Linux and HA checks without rebuilding unchanged
   tools on Windows and macOS.
 
-The setup executables are unchanged from 0.1.3. The 0.1.4 tag was not published
-as a release.
+The setup executables are unchanged from 0.1.3. Tags 0.1.4 and 0.1.5 were not
+published as releases.
 
 ## [0.1.3] - 2026-11-16
 

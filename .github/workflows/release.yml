@@ -71,11 +71,13 @@ jobs:
           if-no-files-found: error
   install:
     needs: [scope, build]
+    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.build.result == 'success' }}
     uses: ./.github/workflows/install.yml
     with:
       full_matrix: ${{ needs.scope.outputs.native_changed == 'true' }}
   publish:
     needs: [build, install]
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.install.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write

@@ -6,7 +6,7 @@
 Control your Winix air purifier (and maybe other devices) locally through Home Assistant, using its
 stock firmware.
 
-**Status: experimental 0.1.5.** Verified on a stock 5510_US on 2026-11-13
+**Status: experimental 0.1.6.** Verified on a stock 5510_US on 2026-11-13
 (it's the only hardware I have). The 59-model catalog is just metadata, not a
 list of supported devices. Feel free to try it out though.
 
