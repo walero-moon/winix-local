@@ -1,7 +1,7 @@
 """Read nearby Wi-Fi networks through the purifier's setup scan command.
 
-The DP0301 layout was checked against the app parser and two captured 5510
-responses. Scanning sends DP0100 and DP0300 only; it changes no device settings.
+The DP0301 layout was checked against two captured 5510 responses.
+Scanning sends DP0100 and DP0300 only. It changes no device settings.
 """
 
 from dataclasses import dataclass

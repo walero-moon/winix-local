@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Prepare an installation bundle, then configure a stock Winix air purifier.
 
-No Winix cloud requests. No automatic Wi-Fi switching or router changes.
+No automatic Wi-Fi switching or router changes.
 """
 
 import argparse

@@ -82,8 +82,7 @@ curl -fsSL https://github.com/walero-moon/winix-local/releases/latest/download/s
 & ([scriptblock]::Create((Invoke-RestMethod 'https://github.com/walero-moon/winix-local/releases/latest/download/setup.ps1'))) identify
 ```
 
-This downloads the tool temporarily and checks its SHA-256 checksum.
-When the tool asks, hold the purifier's Wi-Fi button for about three seconds until
+When asked, hold the purifier's Wi-Fi button for about three seconds until
 it blinks, or use your model's method for entering pairing mode. Connect to its
 network (e.g. `WINIX SMART ...`), then press Enter.
 
@@ -217,6 +216,24 @@ purifier responds. A "settings sent" message alone doesn't confirm a connection.
 Restart the purifier without pressing its Wi-Fi button and check that it
 reconnects. A long press on Wi-Fi puts it back into pairing mode.
 Keep HA and the broker running. You can disconnect the setup computer.
+
+## How it works
+
+Winix configures the machine by having you connect to its Wi-Fi network via their app.
+The app then sends some configuration parameters to the robot which it then uses to
+connect to their cloud system.
+
+This works with the same principle. Except that instead of a mobile app, you just
+run the setup once with a Wi-Fi capable computer:
+
+1. Your computer connects to the purifier's setup hotspot and sends your Wi-Fi
+   credentials, local server addresses, and CA download URLs.
+2. The purifier joins your Wi-Fi and downloads the CA certificate. This lets it
+   trust certificates issued for your local services.
+3. It contacts the registration service provided by the HA integration, which
+   supplies its MQTT credentials and client certificate.
+4. The purifier connects to your MQTT broker. The HA integration receives readings
+   and sends commands through that broker, giving you local controls in HA.
 
 ## Troubleshooting
 
@@ -430,3 +447,9 @@ also installs the built wheel in fresh environments on those platforms, using
 only prebuilt dependencies. Future version tags must pass those installation
 checks, along with all native executable and launcher checks, before the release
 assets are published.
+
+## Acknowledgments
+
+The device catalog is based on the model and sensor definitions in
+[iprak/winix](https://github.com/iprak/winix). Thanks to its contributors for
+mapping those devices.

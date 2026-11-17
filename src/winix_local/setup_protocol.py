@@ -1,7 +1,6 @@
-"""Setup codec reconstructed from Winix Smart 1.6.7; no Wi-Fi credentials here.
+"""Encode and decode local Winix setup messages.
 
 DP0100 and response decryption verified against a stock 5510_US on 2026-11-13.
-DP0200 layout comes from SocketIotBuilder.makeMsgDP0200 at AOT address 0x4c61c0.
 This module has no automatic device writes or cloud connections.
 """
 
@@ -35,7 +34,7 @@ def handshake(nonce: bytes) -> bytes:
     if len(nonce) != NONCE_BYTES:
         raise ValueError("DP0100 nonce must be four bytes")
 
-    # The app's advertised length excludes the cleartext 0x01 security marker.
+    # The advertised request length excludes the cleartext 0x01 security marker.
     return (
         struct.pack("<I", FRAME_HEADER_BYTES + len(nonce)) + header(1) + b"\x01" + nonce
     )
@@ -104,7 +103,7 @@ def server_body(
 ) -> bytes:
     """URI01 CA download enabled local auth TLS on a stock 5510_US.
 
-    Keep the app's empty default unless explicitly testing a separate auth CA.
+    Keep the empty default unless explicitly testing a separate auth CA.
     MQTT trust and backend registration remain separate acceptance tests.
     """
     if not 1 <= broker_port <= 65535 or not 0 <= region <= 255:
@@ -138,7 +137,7 @@ def scan_request() -> bytes:
 
 
 def wifi_body(ssid: str, password: str, bssid: str) -> bytes:
-    """DP0400 plaintext layout from the app; transmission remains a separate action."""
+    """Encode the DP0400 Wi-Fi settings without transmitting them."""
     ssid_bytes, password_bytes = ssid.encode("utf-8"), password.encode("utf-8")
     bssid = bssid.replace(":", "")
     if (
