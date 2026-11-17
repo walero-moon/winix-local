@@ -297,6 +297,56 @@ class RuntimeTests(unittest.IsolatedAsyncioTestCase):
             flow.async_create_entry.assert_not_called()
             await hass.async_stop()
 
+    async def test_managed_setup_reaches_certificate_choices_and_confirmation(self):
+        from custom_components.winix_local.config_flow import WinixLocalFlow
+        from homeassistant.config_entries import ConfigEntries
+
+        settings = dict(
+            mac="AABBCCDDEEFF",
+            model="5510_US",
+            server_host="ha.home.arpa",
+            mqtt_host="mqtt.home.arpa",
+            http_port=18080,
+            https_port=18443,
+            mqtt_port=8883,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            hass = HomeAssistant(directory)
+            hass.config_entries = ConfigEntries(hass, {})
+            await hass.config_entries.async_initialize()
+            manager = hass.config_entries.flow
+            try:
+                with patch(
+                    "homeassistant.config_entries._async_get_flow_handler",
+                    AsyncMock(return_value=WinixLocalFlow),
+                ):
+                    result = await manager.async_init(
+                        "winix_local", context={"source": "user"}
+                    )
+                    flow_id = result["flow_id"]
+                    result = await manager.async_configure(
+                        flow_id, {"next_step_id": "connection"}
+                    )
+                    self.assertEqual(result["step_id"], "connection")
+                    result = await manager.async_configure(flow_id, settings)
+                    self.assertEqual(result["type"], "menu")
+                    self.assertEqual(result["step_id"], "certificate_source")
+                    self.assertEqual(
+                        result["menu_options"], ["generate", "issuer", "certificates"]
+                    )
+                    result = await manager.async_configure(
+                        flow_id, {"next_step_id": "generate"}
+                    )
+                    self.assertEqual(result["step_id"], "generate")
+                    result = await manager.async_configure(
+                        flow_id, {"retain_ca_key": False}
+                    )
+                    self.assertEqual(result["step_id"], "confirm")
+                    self.assertFalse((Path(directory) / "winix_local").exists())
+                    manager.async_abort(flow_id)
+            finally:
+                await hass.async_stop()
+
     async def test_registration_host_suggestion_uses_only_a_suitable_internal_host(
         self,
     ):

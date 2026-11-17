@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3] - 2026-11-16
+
+- Fix the "Unknown error occurred" message after submitting local connection
+  settings. The certificate-choice menu now has the handler HA requires.
+- Add a regression test that follows setup through HA's flow manager, from the
+  first menu to certificate selection and confirmation.
+
 ## [0.1.2] - 2026-11-16
 
 - HA suggests its internal hostname or IPv4 address for the registration host.

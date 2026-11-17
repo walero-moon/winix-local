@@ -83,10 +83,7 @@ class WinixLocalFlow(config_entries.ConfigFlow, domain="winix_local"):
                 errors["base"] = "invalid_settings"
             else:
                 self._settings = settings
-                return self.async_show_menu(
-                    step_id="certificate_source",
-                    menu_options=["generate", "issuer", "certificates"],
-                )
+                return await self.async_step_certificate_source()
 
         suggested_values = dict(user_input or {})
         if "server_host" not in suggested_values:
@@ -117,6 +114,15 @@ class WinixLocalFlow(config_entries.ConfigFlow, domain="winix_local"):
                 suggested_values,
             ),
             errors=errors,
+        )
+
+    async def async_step_certificate_source(self, user_input=None):
+        if not self._settings:
+            return await self.async_step_connection()
+
+        return self.async_show_menu(
+            step_id="certificate_source",
+            menu_options=["generate", "issuer", "certificates"],
         )
 
     async def async_step_generate(self, user_input=None):
