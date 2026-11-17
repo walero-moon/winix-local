@@ -32,7 +32,7 @@
       },
       "generate": {
         "title": "Generate certificates",
-        "description": "Create a dedicated Winix CA, registration-server, broker, and device certificates. Retention is off by default: the CA signing key is used in memory and is not saved. Without it, issuing replacement certificates will require a new CA and reprovisioning. If retained, the key is stored in HA\u2019s private configuration directory and may be included in HA backups. Restrict access to HA and backups. The broker never receives the CA signing key.",
+        "description": "HA will create the certificates for your purifier and local servers.\n\n- **Off (default):** Discard the signing key after setup. Replacing certificates later requires a new CA and setting up the purifier again.\n- **On:** Save the key in HA so you can issue replacements using the same CA. Renewal is still manual.\n\nSaved keys are unencrypted and may be included in HA backups. Keep those backups private.",
         "data": {
           "retain_ca_key": "Retain the CA signing key on HA"
         }
@@ -63,7 +63,7 @@
       },
       "confirm": {
         "title": "Create local installation",
-        "description": "Device: {model} ({mac}). Purifier MQTT endpoint: {mqtt_host}:{mqtt_port}. Retain CA signing key: {retained}.\n\nSubmitting saves a private installation without changing your broker or purifier. HA will start its registration listeners when the entry loads. Open the entry\u2019s Configure menu afterward to download the broker certificate package and public provision.json. Install the broker package, then run `winix-local setup --config provision.json` on a computer connected to the purifier setup Wi-Fi. Configure HA\u2019s MQTT integration to use this same broker. Existing files are never overwritten."
+        "description": "- **Device:** {model} (`{mac}`)\n- **MQTT broker:** `{mqtt_host}:{mqtt_port}`\n- **Save CA signing key:** {retained}\n\nSelect **Submit** to save the installation in HA.\n\n**Next steps**\n\n1. Open **Winix Local \u2192 Configure** and download the two setup files.\n2. Apply the broker certificate package and topic permissions to your MQTT broker.\n3. Follow [Connect the purifier](https://github.com/walero-moon/winix-local#5-connect-the-purifier) on your computer, starting on your usual Wi-Fi."
       },
       "existing": {
         "title": "Use an existing installation",
